@@ -1,1 +1,1 @@
-require 'annotation-aligner'
+require 'sequence-alignment'

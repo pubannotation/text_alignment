@@ -1,12 +1,13 @@
-# Dictionary
+# SequenceAlignment
 
-[annotation-aligner](https://github.com/jdkim/annotation-aligner) enables alignment of annotation to a text to a variation of the text.
+It allows to get an optimal alignemnt of two character sequences, e.g., text.
+
 
 ## Installation
 
 Add this line to your application's Gemfile:
 
-    gem 'annotation-aligner'
+    gem 'sequence-alignment'
 
 And then execute:
 
@@ -14,7 +15,7 @@ And then execute:
 
 Or install it yourself as:
 
-    $ gem install annotation-aligner
+    $ gem install sequence-alignment
 
 
 ## Contributing

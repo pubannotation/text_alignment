@@ -7,7 +7,7 @@ It allows to get an optimal alignemnt of two character sequences, e.g., text.
 
 Add this line to your application's Gemfile:
 
-    gem 'sequence-alignment'
+    gem 'sequence_alignment'
 
 And then execute:
 
@@ -15,7 +15,7 @@ And then execute:
 
 Or install it yourself as:
 
-    $ gem install sequence-alignment
+    $ gem install sequence_alignment
 
 
 ## Contributing

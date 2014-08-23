@@ -1,1 +1,0 @@
-require 'sequence-alignment/glcs'

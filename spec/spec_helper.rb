@@ -1,1 +1,1 @@
-require 'sequence_alignment'
+require 'text_alignment'

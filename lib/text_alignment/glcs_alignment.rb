@@ -1,9 +1,11 @@
 #!/usr/bin/env ruby
 require 'ruby-dictionary'
 
+module TextAlignment; end unless defined? TextAlignment
+
 # An instance of this class holds the results of generalized LCS computation for the two strings str1 and str2.
 # an optional dictionary is used for generalized suffix comparision.
-class GLCSAlignment
+class TextAlignment::GLCSAlignment
   # The mapping function from str1 to str2
   attr_reader :position_map_begin, :position_map_end
 
@@ -279,29 +281,23 @@ if __FILE__ == $0
   # str1 = "-κ-"
   # str2 = "-kappa-"
 
-  str1 = File.read(ARGV[0]).strip
-  str2 = File.read(ARGV[1]).strip
+  # str1 = File.read(ARGV[0]).strip
+  # str2 = File.read(ARGV[1]).strip
 
+  str1 = "beta"
+  str2 = "β***"
+  
   # puts "str1: #{str1}"
   # puts "str2: #{str2}"
-  sa = GLCSAlignment.new(str1, str2, dictionary)
-  # sa.show_glcs
-  # puts '-----'
-  # puts sa.cdiff
-  # puts '-----'
-  # diff = sa.diff
-  # diff.each {|d| p d}
-  # puts '-----'
-  # sdiff = sa.sdiff
-  # sdiff.each {|d| p d}
-  # puts '-----'
-  # mapping = sa.position_map_begin
-  # puts "mapping: #{mapping}"
-  # puts '-----'
-  # puts "common_elements: #{sa.common_elements}"
-  # puts '-----'
-  # puts "mapped_elements: #{sa.mapped_elements}"
-  # puts '-----'
+  sa = TextAlignment::GLCSAlignment.new(str1, str2, dictionary)
+  sa.position_map_begin.each {|h| p h}
+  puts '-----'
+  sa.position_map_end.each {|h| p h}
+  puts '-----'
+  puts "common_elements: #{sa.common_elements}"
+  puts '-----'
+  puts "mapped_elements: #{sa.mapped_elements}"
+  puts '-----'
   # puts "diff_string1: #{sa.diff_strings[0]}"
   # puts "diff_string2: #{sa.diff_strings[1]}"
   puts "front_overflow: #{sa.front_overflow}"

@@ -7,18 +7,20 @@ module TextAlignment; end unless defined? TextAlignment
 class TextAlignment::LCSComparison
   # The similarity ratio of the given two strings after stripping unmatched prefixes and suffixes
   attr_reader :similarity
+
+  # The initial and final matching positions of str1 and str2 
   attr_reader :str1_match_initial, :str1_match_final, :str2_match_initial, :str2_match_final
 
-  def initialize(str1, str2)
+  def initialize(str1, str2, lcs = nil, sdiff = nil)
     raise ArgumentError, "nil string" if str1 == nil || str2 == nil
     @str1, @str2 = str1, str2
-    _lcs_comparison(str1, str2)
+    _lcs_comparison(str1, str2, lcs, sdiff)
   end
 
   private
 
-  def _lcs_comparison(str1, str2)
-    lcs, msdiff = TextAlignment::min_lcs_sdiff(str1, str2)
+  def _lcs_comparison(str1, str2, lcs = nil, sdiff = nil)
+    lcs, msdiff = TextAlignment::min_lcs_sdiff(str1, str2) if lcs.nil?
 
     match_initial = msdiff.index{|d| d.action == '='}
     match_final   = msdiff.rindex{|d| d.action == '='}
@@ -38,9 +40,9 @@ if __FILE__ == $0
     str1 = File.read(ARGV[0]).strip
     str2 = File.read(ARGV[1]).strip
   end
-  puts "String 1: #{str1}"
-  puts "String 2: #{str2}"
-  puts "----------"
+  # puts "String 1: #{str1}"
+  # puts "String 2: #{str2}"
+  # puts "----------"
   comparison = TextAlignment::LCSComparison.new(str1, str2)
   puts "Similarity: #{comparison.similarity}"
   puts "String 1 match: (#{comparison.str1_match_initial}, #{comparison.str1_match_final})"

@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 require 'text_alignment/approximate_location'
+# require 'text_alignment/approximate_fit'
 require 'text_alignment/lcs_comparison'
 
 module TextAlignment; end unless defined? TextAlignment
@@ -59,6 +60,7 @@ class << TextAlignment
         offset_begin = 0 if offset_begin < 0
         offset_end   = l + len1 + buffer_size
         offset_end   = len2 if offset_end > len2 
+        # offset_begin, offset_end = approximate_fit(str1, str2)
       end
 
       c = TextAlignment::LCSComparison.new(str1, str2[offset_begin .. offset_end])

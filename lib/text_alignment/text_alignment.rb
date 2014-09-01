@@ -1,13 +1,19 @@
 #!/usr/bin/env ruby
 require 'diff-lcs'
 require 'text_alignment/min_lcs_sdiff'
+require 'text_alignment/find_divisions'
+require 'text_alignment/lcs_comparison'
+require 'text_alignment/lcs_alignment'
 require 'text_alignment/glcs_alignment'
+require 'text_alignment/mappings'
 
 module TextAlignment; end unless defined? TextAlignment
 
 class TextAlignment::TextAlignment
   attr_reader :position_map_begin, :position_map_end
   attr_reader :common_elements, :mapped_elements
+  attr_reader :similarity
+  attr_reader :str1_match_initial, :str1_match_final, :str2_match_initial, :str2_match_final
 
   def initialize(str1, str2, mappings = [])
     raise ArgumentError, "nil string" if str1.nil? || str2.nil?
@@ -35,10 +41,24 @@ class TextAlignment::TextAlignment
     spans.map{|span| transform_a_span(span)}
   end
 
+  def transform_denotations(denotations)
+    return nil if denotations == nil
+    denotations_new = Array.new(denotations)
+    (0...denotations.length).each {|i| denotations_new[i][:span] = transform_a_span(denotations[i][:span])}
+    denotations_new
+  end
+
   private
 
   def _compute_mixed_alignment(str1, str2, mappings = [])
     lcs, sdiff = TextAlignment.min_lcs_sdiff(str1, str2)
+
+    cmp = TextAlignment::LCSComparison.new(str1, str2, lcs, sdiff)
+    @similarity         = cmp.similarity
+    @str1_match_initial = cmp.str1_match_initial
+    @str1_match_final   = cmp.str1_match_final
+    @str2_match_initial = cmp.str2_match_initial
+    @str2_match_final   = cmp.str2_match_final
 
     posmap_begin, posmap_end = {}, {}
     @common_elements, @mapped_elements = [], []
@@ -58,12 +78,13 @@ class TextAlignment::TextAlignment
         elsif addition.empty? && !deletion.empty?
           deletion.each{|p| posmap_begin[p], posmap_end[p] = p2, p2}
         elsif !addition.empty? && !deletion.empty?
-          if addition.length > 1 && deletion.length > 1
+          if addition.length > 1 || deletion.length > 1
             galign = TextAlignment::GLCSAlignment.new(str1[deletion[0] .. deletion[-1]], str2[addition[0] .. addition[-1]], mappings)
             galign.position_map_begin.each {|k, v| posmap_begin[k + deletion[0]] = v.nil? ? nil : v + addition[0]}
             galign.position_map_end.each   {|k, v|   posmap_end[k + deletion[0]] = v.nil? ? nil : v + addition[0]}
             posmap_begin[p1], posmap_end[p1] = p2, p2
-            @mapped_elements += galign.common_elements + galign.mapped_elements
+            @common_elements += galign.common_elements
+            @mapped_elements += galign.mapped_elements
           else
             posmap_begin[deletion[0]], posmap_end[deletion[0]] = addition[0], addition[0]
             deletion[1..-1].each{|p| posmap_begin[p], posmap_end[p] = nil, nil}
@@ -110,52 +131,15 @@ class TextAlignment::TextAlignment
 end
 
 if __FILE__ == $0
-
-  # str1 = "TGF-β–induced"
-  # str2 = "TGF-beta-induced"
-
-  # str1 = "TGF-beta-induced"
-  # str2 = "TGF-β–induced"
-
-  # str1 = "beta-induced"
-  # str2 = "TGF-beta-induced"
-
-  # str1 = "TGF-beta-induced"
-  # str2 = "beta-induced"
-
-  # str1 = "TGF-β–β induced"
-  # str2 = "TGF-beta-beta induced"
-
-  # str1 = "-βκ-"
-  # str2 = "-betakappa-"
-
-  str1 = '-βκ'
-  str2 = '-betakappa'
-
-  # str1 = "-betakappa-beta-z"
-  # str2 = "-βκ-β–z"
-
-  # str1 = "affect C/EBP-β’s ability"
-  # str2 = "affect C/EBP-beta's ability"
-
-  # str1 = "12 ± 34"
-  # str2 = "12 +/- 34"
-
-  # str1 = "TGF-β–treated"
-  # str2 = "TGF-beta-treated"
-
-  # str1 = "in TGF-β–treated cells"
-  # str2   = "in TGF-beta-treated cells"
-
-  # str1 = "TGF-β–induced"
-  # str2 = "TGF-beta-induced"
+  str1 = '-βκ-'
+  str2 = '-betakappa-'
 
   # anns1 = JSON.parse File.read(ARGV[0]), :symbolize_names => true
   # anns2 = JSON.parse File.read(ARGV[1]), :symbolize_names => true
 
   dictionary = [["β", "beta"]]
   # align = TextAlignment::TextAlignment.new(str1, str2)
-  align = TextAlignment::TextAlignment.new(str1, str2, dictionary)
+  align = TextAlignment::TextAlignment.new(str1, str2, TextAlignment::MAPPINGS)
   p align.common_elements
   p align.mapped_elements
 end

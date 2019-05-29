@@ -19,35 +19,43 @@ class << TextAlignment
     ngram2 = (0 .. str2.length - TextAlignment::SIGNATURE_NGRAM).collect{|i| str2[i, TextAlignment::SIGNATURE_NGRAM]}
     ngram_shared = ngram1 & ngram2
 
-    # If there is no shared n-gram found, it means there is no serious overlap in between the two strings
+    # If there is no shared n-gram found, it may mean there is no serious overlap between the two strings
     return nil, nil if ngram_shared.empty?
 
     # approximate the beginning of the fit
     signature_ngram = ngram_shared.detect{|g| ngram2.count(g) == 1}
-    raise "no signature ngram" if signature_ngram.nil?
+
+    return nil, nil if signature_ngram.nil? #raise "no signature ngram"
     offset = str1.index(signature_ngram)
     fit_begin = str2.index(signature_ngram) - offset - (offset * TextAlignment::BUFFER_RATE).to_i
     fit_begin = 0 if fit_begin < 0    
+
+    # to change the order according to ngram2
+    ngram_shared = ngram2 & ngram1
 
     # approximate the end of the fit
     ngram_shared_reverse = ngram_shared.reverse
     ngram2_reverse = ngram2.reverse
     signature_ngram = ngram_shared_reverse.detect{|g| ngram2_reverse.count(g) == 1}
-    raise "no signature ngram" if signature_ngram.nil?
+    return nil, nil if signature_ngram.nil? # raise "no signature ngram" 
     offset = str1.length - str1.rindex(signature_ngram)
     fit_end = str2.rindex(signature_ngram) + offset + (offset * TextAlignment::BUFFER_RATE).to_i
     fit_end = str2.length if fit_end > str2.length
 
+    return nil, nil if fit_begin >= fit_end
     return fit_begin, fit_end
   end
 end
 
 if __FILE__ == $0
+  require 'json'
+
   if ARGV.length == 2
-    str1 = File.read(ARGV[0]).strip
-    str2 = File.read(ARGV[1]).strip
+    str1 = JSON.parse(File.read(ARGV[0]).strip)["text"]
+    str2 = JSON.parse(File.read(ARGV[1]).strip)["text"]
 
     loc = TextAlignment::approximate_fit(str1, str2)
     p loc
+    puts str2[loc[0]...loc[1]]
   end
 end

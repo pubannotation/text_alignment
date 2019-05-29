@@ -109,7 +109,7 @@ describe TextAlignment::TextAlignment do
       sa = TextAlignment::TextAlignment.new('-βκ-', '-betakappa-', @dictionary)
       expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>5, 3=>10, 4=>11})
       expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>5, 3=>10, 4=>11})
-      expect(sa.common_elements).to eq([['-', '-'], ['β', 'beta'], ['-', '-']])
+      expect(sa.common_elements).to match_array([['-', '-'], ['β', 'beta'], ['-', '-']])
       expect(sa.mapped_elements).to eq([['κ', 'kappa']])
     end
 
@@ -118,7 +118,7 @@ describe TextAlignment::TextAlignment do
       sa = TextAlignment::TextAlignment.new('-βκ', '-betakappa', @dictionary)
       expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>5, 3=>10})
       expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>5, 3=>10})
-      expect(sa.common_elements).to eq([['-', '-'], ['β', 'beta']])
+      expect(sa.common_elements).to match_array([['-', '-'], ['β', 'beta']])
       expect(sa.mapped_elements).to eq([['κ', 'kappa']])
     end
 
@@ -127,7 +127,7 @@ describe TextAlignment::TextAlignment do
       sa = TextAlignment::TextAlignment.new('βκ-', 'betakappa-', @dictionary)
       expect(sa.position_map_begin).to eq({0=>0, 1=>4, 2=>9, 3=>10})
       expect(sa.position_map_end).to eq({0=>0, 1=>4, 2=>9, 3=>10})
-      expect(sa.common_elements).to eq([['β', 'beta'], ['-', '-']])
+      expect(sa.common_elements).to match_array([['β', 'beta'], ['-', '-']])
       expect(sa.mapped_elements).to eq([['κ', 'kappa']])
     end
 

@@ -17,8 +17,6 @@ describe TextAlignment::LCSAlignment do
       expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>2, 3=>2, 4=>2, 5=>2, 6=>3, 7=>4})
       expect(sa.common_elements).to eq([['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd']])
       expect(sa.mapped_elements).to eq([])
-      expect(sa.front_overflow).to eq 0
-      expect(sa.rear_overflow).to eq 0
     end
 
     it 'should detect an addition' do
@@ -28,8 +26,6 @@ describe TextAlignment::LCSAlignment do
       expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>2, 3=>6, 4=>7})
       expect(sa.common_elements).to eq([['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd']])
       expect(sa.mapped_elements).to eq([])
-      expect(sa.front_overflow).to eq 0
-      expect(sa.rear_overflow).to eq 0
     end
 
     it 'should detect a variation' do
@@ -39,8 +35,6 @@ describe TextAlignment::LCSAlignment do
       expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>2, 3=>nil, 4=>nil, 5=>4, 6=>5, 7=>6})
       expect(sa.common_elements).to eq([['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd']])
       expect(sa.mapped_elements).to eq([['ijk', 'xy']])
-      expect(sa.front_overflow).to eq 0
-      expect(sa.rear_overflow).to eq 0
     end
   end
 

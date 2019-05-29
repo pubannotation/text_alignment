@@ -1,9 +1,7 @@
 source 'https://rubygems.org'
 ruby '2.3.4'
 
-# Specify your gem's dependencies in *.gemspec
-#gemspec
-
+gem 'diff-lcs', '~> 1.3'
 gem 'ruby-dictionary', '~>1.1', '>=1.1.1'
 
 group :test do

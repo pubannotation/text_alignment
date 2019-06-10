@@ -57,22 +57,21 @@ class TextAlignment::TextAlignment
     mappings.delete_if{|m| m[0].length == 1 && m[1].length == 1}
 
     # ASCII foldings
-    # ascii_foldings = mappings.select{|m| m[0].length == 1 && m[1].length > 1}
-    # ascii_foldings.each do |f|
-    #   from = f[1]
+    ascii_foldings = mappings.select{|m| m[0].length == 1 && m[1].length > 1}
+    ascii_foldings.each do |f|
+      from = f[1]
 
-    #   if str2.index(f[0])
-    #     to   = f[0] + (@nomatch_char1 * (f[1].length - 1))
-    #     str1.gsub!(from, to)
-    #   end
+      if str2.index(f[0])
+        to   = f[0] + (@nomatch_char1 * (f[1].length - 1))
+        str1.gsub!(from, to)
+      end
 
-    #   if str1.index(f[0])
-    #     to   = f[0] + (@nomatch_char2 * (f[1].length - 1))
-    #     str2.gsub!(from, to)
-    #   end
-    # end
-
-    # mappings.delete_if{|m| m[0].length == 1 && m[1].length > 1}
+      if str1.index(f[0])
+        to   = f[0] + (@nomatch_char2 * (f[1].length - 1))
+        str2.gsub!(from, to)
+      end
+    end
+    mappings.delete_if{|m| m[0].length == 1 && m[1].length > 1}
 
     _compute_mixed_alignment(str1, str2, mappings)
   end
@@ -193,11 +192,11 @@ if __FILE__ == $0
   # anns2 = JSON.parse File.read(ARGV[1]), :symbolize_names => true
 
   if ARGV.length == 2
-    # str1  = JSON.parse(File.read(ARGV[0]).strip)["text"]
-    # denotations = JSON.parse(File.read(ARGV[0]).strip, symbolize_names:true)[:denotations]
-    # str2  = JSON.parse(File.read(ARGV[1]).strip)["text"]
-    str1 = File.read(ARGV[0])
-    str2 = File.read(ARGV[1])
+    str1  = JSON.parse(File.read(ARGV[0]).strip)["text"]
+    denotations = JSON.parse(File.read(ARGV[0]).strip, symbolize_names:true)[:denotations]
+    str2  = JSON.parse(File.read(ARGV[1]).strip)["text"]
+    # str1 = File.read(ARGV[0])
+    # str2 = File.read(ARGV[1])
   end
 
   # dictionary = [["β", "beta"]]

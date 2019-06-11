@@ -1,0 +1,31 @@
+#!/usr/bin/env ruby
+require 'text_alignment'
+
+require 'json'
+require 'pp'
+
+unless ARGV.length == 2
+	warn "align_annotations target_annotations(.json) reference_annotations(.json)"
+	exit
+end
+
+anns1 = JSON.parse File.read(ARGV[0].strip), :symbolize_names => true
+anns2 = JSON.parse File.read(ARGV[1].strip), :symbolize_names => true
+
+str1 = anns1[:text]
+str2 = anns2[:text]
+
+denotations = anns1[:denotations]
+
+align = TextAlignment::TextAlignment.new(str1, str2, TextAlignment::MAPPINGS)
+puts TextAlignment::sdiff2cdiff(align.sdiff)
+puts "\n=====\n\n"
+
+pp denotations
+puts "-----"
+new_denotations = align.transform_hdenotations(denotations)
+pp new_denotations
+
+# p align.common_elements
+# puts "---------------"
+# p align.mapped_elements

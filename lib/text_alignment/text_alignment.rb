@@ -27,6 +27,7 @@ class TextAlignment::TextAlignment
     ## preprocessing
     str1 = str1.dup
     str2 = str2.dup
+    mappings = mappings.dup
 
     ## find the first nomatch character
     TextAlignment::NOMATCH_CHARS.each_char do |c|

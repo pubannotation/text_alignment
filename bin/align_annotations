@@ -17,12 +17,29 @@ str2 = anns2[:text]
 
 denotations = anns1[:denotations]
 
+puts "[Alignment1]====="
 align = TextAlignment::TextAlignment.new(str1, str2, TextAlignment::MAPPINGS)
 puts TextAlignment::sdiff2cdiff(align.sdiff)
-puts "\n=====\n\n"
-
+puts
+puts "[Similarity]\n#{align.similarity}"
+puts
+puts '[Denotations original]'
 pp denotations
-puts "-----"
+puts
+puts '[Denotations transformed]'
+new_denotations = align.transform_hdenotations(denotations)
+pp new_denotations
+puts
+puts "[Alignment2 (downcased)]====="
+align = TextAlignment::TextAlignment.new(str1.downcase, str2.downcase, TextAlignment::MAPPINGS)
+puts TextAlignment::sdiff2cdiff(align.sdiff)
+puts
+puts "[Similarity]\n#{align.similarity}"
+puts
+puts '[Denotations original]'
+pp denotations
+puts
+puts '[Denotations transformed]'
 new_denotations = align.transform_hdenotations(denotations)
 pp new_denotations
 

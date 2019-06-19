@@ -79,7 +79,7 @@ class TextAlignment::TextAlignment
   end
 
   def transform_a_span(span)
-    {:begin=>@position_map_begin[span[:begin]], :end=>@position_map_end[span[:end]]}
+    {begin: @position_map_begin[span[:begin]], end: @position_map_end[span[:end]]}
   end
 
   def transform_spans(spans)
@@ -91,11 +91,8 @@ class TextAlignment::TextAlignment
   end
 
   def transform_hdenotations(hdenotations)
-    unless hdenotations.nil?
-      hdenotations_new = Array.new(hdenotations)
-      (0...hdenotations.length).each {|i| hdenotations_new[i][:span] = transform_a_span(hdenotations[i][:span])}
-      hdenotations_new
-    end
+    return nil if hdenotations.nil?
+    hdenotations.collect{|d| d.dup.merge({span:transform_a_span(d[:span])})}
   end
 
   private

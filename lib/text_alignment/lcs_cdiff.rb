@@ -37,7 +37,7 @@ class << TextAlignment
       end
     end
 
-    cdiff_str1.gsub(/\n/, ' ') + "\n" + cdiff_str2.gsub(/\n/, ' ')
+    cdiff_str1.gsub(/\n/, ' ') + "\n>>>>><<<<<\n" + cdiff_str2.gsub(/\n/, ' ')
   end
 
 end

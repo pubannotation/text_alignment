@@ -33,7 +33,7 @@ class TextAlignment::LCSComparison
       @str2_match_initial = sdiff[match_initial].new_position
       @str1_match_final   = sdiff[match_final].old_position
       @str2_match_final   = sdiff[match_final].new_position
-      @similarity  = lcs / [@str1_match_final - @str1_match_initial + 1, @str2_match_final - @str2_match_initial + 1].min.to_f
+      @similarity  = 2 * lcs / ((@str1_match_final - @str1_match_initial + 1) + (@str2_match_final - @str2_match_initial + 1)).to_f
     else
       @str1_match_initial = 0
       @str2_match_initial = 0

@@ -42,6 +42,10 @@ puts
 puts '[Denotations transformed]'
 new_denotations = align.transform_hdenotations(denotations)
 pp new_denotations
+puts
+puts '[Annotations transformed]'
+anns2[:denotations] = new_denotations
+puts anns2.to_json
 
 # p align.common_elements
 # puts "---------------"

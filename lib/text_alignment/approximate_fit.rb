@@ -1,11 +1,14 @@
 #!/usr/bin/env ruby
+require 'string-similarity'
+
 module TextAlignment; end unless defined? TextAlignment
 
 # approximate the location of str1 in str2
 module TextAlignment
   SIGNATURE_NGRAM = 5
   MIN_LENGTH_FOR_APPROXIMATION = 50
-  BUFFER_RATE = 0.2
+  BUFFER_RATE = 0.1
+  TEXT_SIMILARITY_TRESHOLD = 0.8
 end
 
 class << TextAlignment
@@ -22,29 +25,40 @@ class << TextAlignment
     # If there is no shared n-gram found, it may mean there is no serious overlap between the two strings
     return nil, nil if ngram_shared.empty?
 
-    # approximate the beginning of the fit
-    signature_ngram = ngram_shared.detect{|g| ngram2.count(g) == 1}
+    signature_ngrams = ngram_shared.select{|g| ngram2.count(g) == 1}
+    return nil, nil if signature_ngrams.empty? #raise "no signature ngram"
 
-    return nil, nil if signature_ngram.nil? #raise "no signature ngram"
-    offset = str1.index(signature_ngram)
-    fit_begin = str2.index(signature_ngram) - offset - (offset * TextAlignment::BUFFER_RATE).to_i
-    fit_begin = 0 if fit_begin < 0    
+    fit_begin, fit_end = nil, nil
+    signature_ngrams.each do |signature_ngram|
+      loc_signature_ngram_in_str1 = str1.index(signature_ngram)
+      loc_signature_ngram_in_str2 = str2.index(signature_ngram)
 
-    # to change the order according to ngram2
-    ngram_shared = ngram2 & ngram1
+      # approximate the beginning of the fit
+      fit_begin = loc_signature_ngram_in_str2 - loc_signature_ngram_in_str1 - (loc_signature_ngram_in_str1 * TextAlignment::BUFFER_RATE).to_i
+      fit_begin = 0 if fit_begin < 0
 
-    # approximate the end of the fit
-    ngram_shared_reverse = ngram_shared.reverse
-    ngram2_reverse = ngram2.reverse
-    signature_ngram = ngram_shared_reverse.detect{|g| ngram2_reverse.count(g) == 1}
-    return nil, nil if signature_ngram.nil? # raise "no signature ngram" 
-    offset = str1.length - str1.rindex(signature_ngram)
-    fit_end = str2.rindex(signature_ngram) + offset + (offset * TextAlignment::BUFFER_RATE).to_i
-    fit_end = str2.length if fit_end > str2.length
+      # approximate the end of the fit
+      offset_end = str1.length - loc_signature_ngram_in_str1
+      fit_end = loc_signature_ngram_in_str2 + offset_end + (offset_end * TextAlignment::BUFFER_RATE).to_i
+      fit_end = str2.length if fit_end > str2.length
+
+      text_similarity = text_similarity(str1, str2[fit_begin ... fit_end])
+      break if text_similarity > TextAlignment::TEXT_SIMILARITY_TRESHOLD
+      fit_begin, fit_end = nil, nil
+    end
 
     return nil, nil if fit_begin >= fit_end
     return fit_begin, fit_end
   end
+
+  private
+
+  def text_similarity(str1, str2, ngram_order = 3)
+    _str1 = str1.delete(" \t\r\n")
+    _str2 = str2.delete(" \t\r\n")
+    String::Similarity.cosine(_str1, _str2, ngram:2)
+  end
+
 end
 
 if __FILE__ == $0

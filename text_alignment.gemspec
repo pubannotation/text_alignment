@@ -18,5 +18,6 @@ Gem::Specification.new do |gem|
   gem.require_paths = ['lib']
 
   gem.add_development_dependency 'ruby-dictionary', '~>1.1', '>=1.1.1'
+  gem.add_development_dependency 'string-similarity', '~> 2.1'
   gem.add_development_dependency 'rspec', '~>3.0'
 end

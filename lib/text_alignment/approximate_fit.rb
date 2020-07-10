@@ -8,7 +8,7 @@ module TextAlignment
   SIGNATURE_NGRAM = 5
   MIN_LENGTH_FOR_APPROXIMATION = 50
   BUFFER_RATE = 0.1
-  TEXT_SIMILARITY_TRESHOLD = 0.8
+  TEXT_SIMILARITY_TRESHOLD = 0.7
 end
 
 class << TextAlignment
@@ -28,6 +28,7 @@ class << TextAlignment
     signature_ngrams = ngram_shared.select{|g| ngram2.count(g) == 1}
     return nil, nil if signature_ngrams.empty? #raise "no signature ngram"
 
+    cache = {}
     fit_begin, fit_end = nil, nil
     signature_ngrams.each do |signature_ngram|
       loc_signature_ngram_in_str1 = str1.index(signature_ngram)
@@ -42,13 +43,15 @@ class << TextAlignment
       fit_end = loc_signature_ngram_in_str2 + offset_end + (offset_end * TextAlignment::BUFFER_RATE).to_i
       fit_end = str2.length if fit_end > str2.length
 
+      next if cache.has_key?("#{fit_begin}-#{fit_end}")
       text_similarity = text_similarity(str1, str2[fit_begin ... fit_end])
+      cache["#{fit_begin}-#{fit_end}"] = text_similarity
+
       break if text_similarity > TextAlignment::TEXT_SIMILARITY_TRESHOLD
       fit_begin, fit_end = nil, nil
     end
-
-    return nil, nil if fit_begin >= fit_end
-    return fit_begin, fit_end
+    return fit_begin, fit_end if fit_begin && fit_end && fit_begin < fit_end
+    return nil, nil
   end
 
   private

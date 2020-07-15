@@ -38,6 +38,9 @@ target_annotations = if source_annotations.class == Array
 	result = {text: target_text}
 
 	idnum_denotations = 0
+	idnum_relations = 0
+	idnum_attributes = 0
+	idnum_modifications = 0
 	source_annotations.each do |annotations|
 		block_alignment = TextAlignment::TextAlignment.new(annotations[:text], target_text)
 
@@ -54,7 +57,6 @@ target_annotations = if source_annotations.class == Array
 			result[:denotations] += denotations
 
 			if annotations.has_key?(:relations) && !annotations[:relations].empty?
-				idnum_relations = 0
 				result[:relations] = [] unless result.has_key? :relations
 				annotations[:relations].each do |r|
 					reid = 'R' + (idnum_relations += 1).to_s
@@ -64,7 +66,6 @@ target_annotations = if source_annotations.class == Array
 			end
 
 			if annotations.has_key?(:attributes) && !annotations[:attributes].empty?
-				idnum_attributes = 0
 				result[:attributes] = [] unless result.has_key? :attributes
 				annotations[:attributes].each do |a|
 					reid = 'A' + (idnum_attributes += 1).to_s
@@ -74,7 +75,6 @@ target_annotations = if source_annotations.class == Array
 			end
 
 			if annotations.has_key?(:modifications) && !annotations[:modifications].empty?
-				idnum_modifications = 0
 				result[:modifications] = [] unless result.has_key? :modifications
 				annotations[:modifications].each do |m|
 					reid = 'M' + (idnum_modifications += 1).to_s

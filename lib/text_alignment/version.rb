@@ -1,3 +1,3 @@
 class TextAlignment
-  VERSION = '0.2.9'
+	VERSION = '0.3.3'
 end

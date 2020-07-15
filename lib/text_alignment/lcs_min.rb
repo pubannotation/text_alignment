@@ -27,6 +27,12 @@ class TextAlignment::LCSMin
 
     # find the corresponding minimal range of the two strings
     r = _find_min_range(0, @str1.length - 1, 0, @str2.length - 1)
+    if r.nil?
+      @sdiff = nil
+      @lcs = 0
+      return
+    end
+
     @m1_initial, @m1_final, @m2_initial, @m2_final = r[:m1_initial], r[:m1_final], r[:m2_initial], r[:m2_final]
 
     if @m1_initial.nil?

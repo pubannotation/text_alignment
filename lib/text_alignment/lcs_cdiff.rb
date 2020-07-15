@@ -3,9 +3,7 @@ require 'diff-lcs'
 
 module TextAlignment; end unless defined? TextAlignment
 
-module TextAlignment
-  NIL_CHARACTER = '_'
-end
+TextAlignment::NIL_CHARACTER = '_' unless defined? TextAlignment::NIL_CHARACTER
 
 class << TextAlignment
 

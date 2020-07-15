@@ -1,51 +1,134 @@
 #!/usr/bin/env ruby
 require 'text_alignment'
-
 require 'json'
 require 'pp'
+
+def read_annotations(filename)
+	case File.extname(filename)
+	when '.json'
+		JSON.parse File.read(filename), :symbolize_names => true
+	when '.txt'
+		{text: File.read(filename)}
+	else
+		raise "unknown file type: #{filename}"
+	end
+end
+
+def read_text(filename)
+	case File.extname(filename)
+	when '.json'
+		json = JSON.parse File.read(filename), :symbolize_names => true
+		json[:text]
+	when '.txt'
+		File.read(filename)
+	else
+		raise "unknown file type: #{filename}"
+	end
+end
 
 unless ARGV.length == 2
 	warn "align_annotations target_annotations(.json) reference_annotations(.json)"
 	exit
 end
 
-anns1 = JSON.parse File.read(ARGV[0].strip), :symbolize_names => true
-anns2 = JSON.parse File.read(ARGV[1].strip), :symbolize_names => true
+source_annotations = read_annotations(ARGV[0])
+target_text = read_text(ARGV[1])
 
-str1 = anns1[:text]
-str2 = anns2[:text]
+target_annotations = if source_annotations.class == Array
+	result = {text: target_text}
 
-denotations = anns1[:denotations]
+	idnum_denotations = 0
+	source_annotations.each do |annotations|
+		block_alignment = TextAlignment::TextAlignment.new(annotations[:text], target_text)
 
-puts "[Alignment1]====="
-align = TextAlignment::TextAlignment.new(str1, str2, TextAlignment::MAPPINGS)
-puts TextAlignment::sdiff2cdiff(align.sdiff)
-puts
-puts "[Similarity]\n#{align.similarity}"
-puts
-puts '[Denotations original]'
-pp denotations
-puts
-puts '[Denotations transformed]'
-new_denotations = align.transform_hdenotations(denotations)
-pp new_denotations
-puts
-puts "[Alignment2 (downcased)]====="
-align = TextAlignment::TextAlignment.new(str1.downcase, str2.downcase, TextAlignment::MAPPINGS)
-puts TextAlignment::sdiff2cdiff(align.sdiff)
-puts
-puts "[Similarity]\n#{align.similarity}"
-puts
-puts '[Denotations original]'
-pp denotations
-puts
-puts '[Denotations transformed]'
-new_denotations = align.transform_hdenotations(denotations)
-pp new_denotations
-puts
-puts '[Annotations transformed]'
-anns2[:denotations] = new_denotations
-puts anns2.to_json
+		if annotations.has_key?(:denotations) && !annotations[:denotations].empty?
+
+			ididx = {}
+			denotations = block_alignment.transform_hdenotations(annotations[:denotations])
+			denotations.each do |d|
+				reid = 'T' + (idnum_denotations += 1).to_s
+				ididx[d[:id]] = reid
+				d[:id] = reid
+			end
+			result[:denotations] = [] unless result.has_key? :denotations
+			result[:denotations] += denotations
+
+			if annotations.has_key?(:relations) && !annotations[:relations].empty?
+				idnum_relations = 0
+				result[:relations] = [] unless result.has_key? :relations
+				annotations[:relations].each do |r|
+					reid = 'R' + (idnum_relations += 1).to_s
+					ididx[r[:id]] = reid
+					result[:relations] << r.dup.merge({id:reid, subj:ididx[r[:subj]], obj:ididx[r[:obj]]})
+				end
+			end
+
+			if annotations.has_key?(:attributes) && !annotations[:attributes].empty?
+				idnum_attributes = 0
+				result[:attributes] = [] unless result.has_key? :attributes
+				annotations[:attributes].each do |a|
+					reid = 'A' + (idnum_attributes += 1).to_s
+					ididx[a[:id]] = reid
+					result[:attributes] << a.dup.merge({id:reid, subj:ididx[a[:subj]]})
+				end
+			end
+
+			if annotations.has_key?(:modifications) && !annotations[:modifications].empty?
+				idnum_modifications = 0
+				result[:modifications] = [] unless result.has_key? :modifications
+				annotations[:modifications].each do |m|
+					reid = 'M' + (idnum_modifications += 1).to_s
+					ididx[m[:id]] = reid
+					result[:modifications] << m.dup.merge({id:reid, obj:ididx[m[:obj]]})
+				end
+			end
+		end
+	end
+	result
+else
+	block_alignment = TextAlignment::TextAlignment.new(source_annotations[:text], target_text)
+	denotations = block_alignment.transform_hdenotations(source_annotations[:denotations])
+	source_annotations.merge({text:target_text, denotations:denotations})
+end
+
+puts target_annotations.to_json
+
+# denotations = anns1[:denotations]
+
+# puts "[Alignment1]====="
+# align = TextAlignment::TextAlignment.new(str1, str2, TextAlignment::MAPPINGS)
+
+# align.block_alignment.each do |a|
+# 	p [a[:target][:begin], a[:target][:end], a[:source][:begin], a[:source][:end]]
+# end
+
+# puts TextAlignment::sdiff2cdiff(align.sdiff)
+# puts
+# puts "[Similarity]\n#{align.similarity}"
+# puts
+# puts '[Denotations original]'
+# pp denotations
+# puts
+# puts '[Denotations transformed]'
+# new_denotations = align.transform_hdenotations(denotations)
+# pp new_denotations
+# puts
+# puts "[Alignment2 (downcased)]====="
+# align = TextAlignment::TextAlignment.new(str1.downcase, str2.downcase, TextAlignment::MAPPINGS)
+# puts TextAlignment::sdiff2cdiff(align.sdiff)
+# puts
+# puts "[Similarity]\n#{align.similarity}"
+# puts
+# puts '[Denotations original]'
+# pp denotations
+# puts
+# puts '[Denotations transformed]'
+# new_denotations = align.transform_hdenotations(denotations)
+# pp new_denotations
+# puts
+# puts '[Annotations transformed]'
+# anns2[:denotations] = new_denotations
+# puts anns2.to_json
 
 # p align.common_elements
 # puts "---------------"

@@ -7,9 +7,7 @@ module TextAlignment; end unless defined? TextAlignment
 # to work on the hash representation of denotations
 # to assume that there is no bag representation to this method
 
-module TextAlignment
-  TextAlignment::SIMILARITY_THRESHOLD = 0.7
-end
+TextAlignment::SIMILARITY_THRESHOLD = 0.7 unless defined? TextAlignment::SIMILARITY_THRESHOLD
 
 class << TextAlignment
 

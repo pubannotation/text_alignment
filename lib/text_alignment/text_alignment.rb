@@ -1,85 +1,185 @@
 #!/usr/bin/env ruby
-require 'diff-lcs'
-require 'text_alignment/lcs_min'
-require 'text_alignment/find_divisions'
-require 'text_alignment/lcs_comparison'
-require 'text_alignment/lcs_alignment'
-require 'text_alignment/lcs_cdiff'
-require 'text_alignment/glcs_alignment'
-require 'text_alignment/mappings'
+require 'text_alignment/mixed_alignment'
 
 module TextAlignment; end unless defined? TextAlignment
 
-TextAlignment::SIGNATURE_NGRAM = 5 unless defined? TextAlignment::SIGNATURE_NGRAM
-TextAlignment::NOMATCH_CHARS = "@^|#$%&_" unless defined? TextAlignment::NOMATCH_CHARS
+TextAlignment::SIGNATURE_NGRAM = 7 unless defined? TextAlignment::SIGNATURE_NGRAM
 
 class TextAlignment::TextAlignment
-  attr_reader :sdiff
-  attr_reader :position_map_begin, :position_map_end
-  attr_reader :common_elements, :mapped_elements
+  attr_reader :block_alignment
   attr_reader :similarity
-  attr_reader :str1_match_initial, :str1_match_final, :str2_match_initial, :str2_match_final
 
-  def initialize(str1, str2, mappings = [])
+  def initialize(str1, str2)
     raise ArgumentError, "nil string" if str1.nil? || str2.nil?
-    raise ArgumentError, "nil mappings" if mappings.nil?
 
-    ## preprocessing
-    str1 = str1.dup
-    str2 = str2.dup
-    mappings = mappings.dup
+    # try exact match
+    block_begin = str2.index(str1)
+    unless block_begin.nil?
+      @block_alignment = [{target:{begin:0, end:str1.length}, source:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin}]
+      return @block_alignment
+    end
 
-    ## find the first nomatch character
-    TextAlignment::NOMATCH_CHARS.each_char do |c|
-      if str2.index(c).nil?
-        @nomatch_char1 = c
-        break
+    # divide and align
+    ngram1 = (0 .. str1.length - TextAlignment::SIGNATURE_NGRAM).collect{|i| str1[i, TextAlignment::SIGNATURE_NGRAM]}
+    ngram2 = (0 .. str2.length - TextAlignment::SIGNATURE_NGRAM).collect{|i| str2[i, TextAlignment::SIGNATURE_NGRAM]}
+
+    str1_ngrams_index = {}
+    (0 .. str1.length - TextAlignment::SIGNATURE_NGRAM).each do |i|
+      ngram = str1[i, TextAlignment::SIGNATURE_NGRAM]
+      if str1_ngrams_index.has_key?(ngram)
+        str1_ngrams_index[ngram] = nil
+      else
+        str1_ngrams_index[ngram] = i
       end
     end
-    raise RuntimeError, "Cannot find nomatch character" if @nomatch_char1.nil? 
+    str1_ngrams_index.compact!
 
-    ## find the first nomatch character
-    TextAlignment::NOMATCH_CHARS.each_char do |c|
-      if c != @nomatch_char1 && str1.index(c).nil?
-        @nomatch_char2 = c
-        break
+    str2_ngrams_index = {}
+    (0 .. str2.length - TextAlignment::SIGNATURE_NGRAM).each do |i|
+      ngram = str2[i, TextAlignment::SIGNATURE_NGRAM]
+      if str2_ngrams_index.has_key?(ngram)
+        str2_ngrams_index[ngram] = nil
+      else
+        str2_ngrams_index[ngram] = i
       end
     end
-    raise RuntimeError, "Cannot find nomatch character" if @nomatch_char2.nil? 
+    str2_ngrams_index.compact!
 
-    # single character mappings
-    character_mappings = mappings.select{|m| m[0].length == 1 && m[1].length == 1}
-    characters_from = character_mappings.collect{|m| m[0]}.join
-    characters_to   = character_mappings.collect{|m| m[1]}.join
-    characters_to.gsub!(/-/, '\-')
+    shared_ngrams = str1_ngrams_index.keys & str2_ngrams_index.keys
 
-    str1.tr!(characters_from, characters_to)
-    str2.tr!(characters_from, characters_to)
+    if shared_ngrams.empty?
+      @block_alignment = []
+      return @block_alignment
+    end
 
-    mappings.delete_if{|m| m[0].length == 1 && m[1].length == 1}
+    mblocks = []
+    len_shared_ngrams = shared_ngrams.length
+    i = 0
+    while i < len_shared_ngrams
+      b1 = str1_ngrams_index[shared_ngrams[i]]
+      b2 = str2_ngrams_index[shared_ngrams[i]]
+      e1 = b1 + TextAlignment::SIGNATURE_NGRAM
+      e2 = b2 + TextAlignment::SIGNATURE_NGRAM
+      mblock = {target:{begin:b1, end:e1}, source:{begin:b2, end:e2}}
 
-    # ASCII foldings
-    ascii_foldings = mappings.select{|m| m[0].length == 1 && m[1].length > 1}
-    ascii_foldings.each do |f|
-      from = f[1]
-
-      if str2.index(f[0])
-        to   = f[0] + (@nomatch_char1 * (f[1].length - 1))
-        str1.gsub!(from, to)
+      j = i + 1
+      while j < len_shared_ngrams
+        e1 = str1_ngrams_index[shared_ngrams[j]] + TextAlignment::SIGNATURE_NGRAM
+        e2 = str2_ngrams_index[shared_ngrams[j]] + TextAlignment::SIGNATURE_NGRAM
+        if str1[b1 ... e1] == str2[b2 ... e2]
+          mblock = {target:{begin:b1, end:e1}, source:{begin:b2, end:e2}}
+        else
+          break
+        end
+        j += 1
       end
 
-      if str1.index(f[0])
-        to   = f[0] + (@nomatch_char2 * (f[1].length - 1))
-        str2.gsub!(from, to)
+      mblocks << mblock
+
+      i = j
+      i += 1 while (i < len_shared_ngrams) && (str1_ngrams_index[shared_ngrams[i]] < mblock[:target][:end])
+    end
+
+    # extend the blocks
+    mblocks.each do |mblock|
+      b1 = mblock[:target][:begin]
+      b2 = mblock[:source][:begin]
+      while b1 > -1 && b2 > -1 && str1[b1] == str2[b2]
+        b1 -= 1
+        b2 -= 1
+      end
+      b1 += 1
+      b2 += 1
+
+      e1 = mblock[:target][:end]
+      e2 = mblock[:source][:end]
+      while str1[e1] == str2[e2]
+        e1 += 1
+        e2 += 1
+      end
+
+      mblock[:target] = {begin:b1, end:e1}
+      mblock[:source] = {begin:b2, end:e2}
+    end
+
+    @block_alignment = []
+
+    unless mblocks[0][:target][:begin] == 0 || mblocks[0][:source][:begin] == 0
+      e1 = mblocks[0][:target][:begin]
+      e2 = mblocks[0][:source][:begin]
+      _str1 = str1[0 ... e1]
+      _str2 = str2[0 ... e2]
+      unless _str1.strip.empty?
+        if _str2.strip.empty?
+          @block_alignment << {target:{begin:0, end:e1}, source:{begin:0, end:e2}, alignment: :empty}
+        else
+          @block_alignment << {target:{begin:0, end:e1}, source:{begin:0, end:e2}, alignment:TextAlignment::MixedAlignment.new(_str1, _str2, TextAlignment::MAPPINGS)}
+        end
       end
     end
-    mappings.delete_if{|m| m[0].length == 1 && m[1].length > 1}
+    @block_alignment << mblocks[0]
 
-    _compute_mixed_alignment(str1, str2, mappings)
+    (1 ... mblocks.length).each do |i|
+      b1 = mblocks[i - 1][:target][:end] + 1
+      b2 = mblocks[i - 1][:source][:end] + 1
+      e1 = mblocks[i][:target][:begin]
+      e2 = mblocks[i][:source][:begin]
+      _str1 = str1[b1 ... e1]
+      _str2 = str2[b2 ... e2]
+      unless _str1.strip.empty?
+        if _str2.strip.empty?
+          @block_alignment << {target:{begin:b1, end:e1}, source:{begin:b2, end:e2}, alignment: :empty}
+        else
+          @block_alignment << {target:{begin:b1, end:e1}, source:{begin:b2, end:e2}, alignment:TextAlignment::MixedAlignment.new(_str1, _str2, TextAlignment::MAPPINGS)}
+        end
+      end
+      @block_alignment << mblocks[i]
+    end
+
+    unless mblocks[-1][:target][:end] == str1.length || mblocks[-1][:source][:end] == str2.length
+      b1 = mblocks[-1][:target][:end]
+      b2 = mblocks[-1][:source][:end]
+      _str1 = str1[b1 ... -1]
+      _str2 = str2[b2 ... -1]
+      unless _str1.strip.empty?
+        if _str2.strip.empty?
+          @block_alignment << {target:{begin:b1, end:str1.length}, source:{begin:b2, end:str2.length}, alignment: :empty}
+        else
+          @block_alignment << {target:{begin:b1, end:str1.length}, source:{begin:b2, end:str2.length}, alignment:TextAlignment::MixedAlignment.new(_str1, _str2, TextAlignment::MAPPINGS)}
+        end
+      end
+    end
+
+    @block_alignment.each do |a|
+      a[:delta] = a[:source][:begin] - a[:target][:begin]
+    end
+
+  end
+
+  def transform_begin_position(begin_position)
+    i = @block_alignment.index{|b| b[:target][:end] > begin_position}
+    b = if @block_alignment[i][:alignment].nil?
+      begin_position + @block_alignment[i][:delta]
+    elsif @block_alignment[i][:alignment] == :empty
+      raise "lost annotation"
+    else
+      @block_alignment[i][:alignment].transform_begin_position(begin_position) + @block_alignment[i][:delta]
+    end
+  end
+
+  def transform_end_position(end_position)
+    i = @block_alignment.index{|b| b[:target][:end] > end_position}
+    e = if @block_alignment[i][:alignment].nil?
+      end_position + @block_alignment[i][:delta]
+    elsif @block_alignment[i][:alignment] == :empty
+      raise "lost annotation"
+    else
+      @block_alignment[i][:alignment].transform_end_position(end_position) + @block_alignment[i][:delta]
+    end
   end
 
   def transform_a_span(span)
-    {begin: @position_map_begin[span[:begin]], end: @position_map_end[span[:end]]}
+    {begin: transform_begin_position(span[:begin]), end: transform_end_position(span[:end])}
   end
 
   def transform_spans(spans)
@@ -87,7 +187,8 @@ class TextAlignment::TextAlignment
   end
 
   def transform_denotations!(denotations)
-    denotations.map!{|d| d.begin = @position_map_begin[d.begin]; d.end = @position_map_end[d.end]; d} unless denotations.nil?
+    return nil unless denotations.nil?
+    denotations.map!{|d| d.begin = transform_begin_position(d.begin); d.end = transform_end_position(d.end); d} 
   end
 
   def transform_hdenotations(hdenotations)
@@ -95,87 +196,4 @@ class TextAlignment::TextAlignment
     hdenotations.collect{|d| d.dup.merge({span:transform_a_span(d[:span])})}
   end
 
-  private
-
-  def _compute_mixed_alignment(str1, str2, mappings = [])
-    lcsmin = TextAlignment::LCSMin.new(str1, str2)
-    lcs = lcsmin.lcs
-    @sdiff = lcsmin.sdiff
-
-    cmp = TextAlignment::LCSComparison.new(str1, str2, lcs, @sdiff)
-    @similarity         = cmp.similarity
-    @str1_match_initial = cmp.str1_match_initial
-    @str1_match_final   = cmp.str1_match_final
-    @str2_match_initial = cmp.str2_match_initial
-    @str2_match_final   = cmp.str2_match_final
-
-    posmap_begin, posmap_end = {}, {}
-    @common_elements, @mapped_elements = [], []
-
-    addition, deletion = [], []
-
-    @sdiff.each do |h|
-      case h.action
-      when '='
-        p1, p2 = h.old_position, h.new_position
-
-        @common_elements << [str1[p1], str2[p2]]
-        posmap_begin[p1], posmap_end[p1] = p2, p2
-
-        if !addition.empty? && deletion.empty?
-          posmap_end[p1] = p2 - addition.length unless p1 == 0
-        elsif addition.empty? && !deletion.empty?
-          deletion.each{|p| posmap_begin[p], posmap_end[p] = p2, p2}
-        elsif !addition.empty? && !deletion.empty?
-          if addition.length > 1 || deletion.length > 1
-            galign = TextAlignment::GLCSAlignment.new(str1[deletion[0] .. deletion[-1]], str2[addition[0] .. addition[-1]], mappings)
-            galign.position_map_begin.each {|k, v| posmap_begin[k + deletion[0]] = v.nil? ? nil : v + addition[0]}
-            galign.position_map_end.each   {|k, v|   posmap_end[k + deletion[0]] = v.nil? ? nil : v + addition[0]}
-            posmap_begin[p1], posmap_end[p1] = p2, p2
-            @common_elements += galign.common_elements
-            @mapped_elements += galign.mapped_elements
-          else
-            posmap_begin[deletion[0]], posmap_end[deletion[0]] = addition[0], addition[0]
-            deletion[1..-1].each{|p| posmap_begin[p], posmap_end[p] = nil, nil}
-            @mapped_elements << [str1[deletion[0], deletion.length], str2[addition[0], addition.length]]
-          end
-        end
-
-        addition.clear; deletion.clear
-
-      when '!'
-        deletion << h.old_position
-        addition << h.new_position
-      when '-'
-        deletion << h.old_position
-      when '+'
-        addition << h.new_position
-      end
-    end
-
-    p1, p2 = str1.length, str2.length
-    posmap_begin[p1], posmap_end[p1] = p2, p2
-
-    if !addition.empty? && deletion.empty?
-      posmap_end[p1] = p2 - addition.length unless p1 == 0
-    elsif addition.empty? && !deletion.empty?
-      deletion.each{|p| posmap_begin[p], posmap_end[p] = p2, p2}
-    elsif !addition.empty? && !deletion.empty?
-      if addition.length > 1 && deletion.length > 1
-        galign = TextAlignment::GLCSAlignment.new(str1[deletion[0] .. deletion[-1]], str2[addition[0] .. addition[-1]], mappings)
-        galign.position_map_begin.each {|k, v| posmap_begin[k + deletion[0]] = v.nil? ? nil : v + addition[0]}
-        galign.position_map_end.each   {|k, v|   posmap_end[k + deletion[0]] = v.nil? ? nil : v + addition[0]}
-        posmap_begin[p1], posmap_end[p1] = p2, p2
-        @common_elements += galign.common_elements
-        @mapped_elements += galign.mapped_elements
-      else
-        posmap_begin[deletion[0]], posmap_end[deletion[0]] = addition[0], addition[0]
-        deletion[1..-1].each{|p| posmap_begin[p], posmap_end[p] = nil, nil}
-        @mapped_elements << [str1[deletion[0], deletion.length], str2[addition[0], addition.length]]
-      end
-    end
-
-    @position_map_begin = posmap_begin.sort.to_h
-    @position_map_end = posmap_end.sort.to_h
-  end
 end

@@ -4,12 +4,10 @@ require 'string-similarity'
 module TextAlignment; end unless defined? TextAlignment
 
 # approximate the location of str1 in str2
-module TextAlignment
-  SIGNATURE_NGRAM = 5
-  MIN_LENGTH_FOR_APPROXIMATION = 50
-  BUFFER_RATE = 0.1
-  TEXT_SIMILARITY_TRESHOLD = 0.7
-end
+TextAlignment::SIGNATURE_NGRAM = 7 unless defined? TextAlignment::SIGNATURE_NGRAM
+TextAlignment::MIN_LENGTH_FOR_APPROXIMATION = 50 unless defined? TextAlignment::MIN_LENGTH_FOR_APPROXIMATION
+TextAlignment::BUFFER_RATE = 0.1 unless defined? TextAlignment::BUFFER_RATE
+TextAlignment::TEXT_SIMILARITY_TRESHOLD = 0.7 unless defined? TextAlignment::TEXT_SIMILARITY_TRESHOLD
 
 class << TextAlignment
 

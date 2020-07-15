@@ -1,6 +1,6 @@
-module TextAlignment
+module TextAlignment; end unless defined? TextAlignment
 
-  TextAlignment::MAPPINGS = [
+TextAlignment::MAPPINGS = [
     ["©", "(c)"],   #U+00A9 (Copyright Sign)
 
     ["α", "alpha"],   #U+03B1 (greek small letter alpha)
@@ -72,4 +72,3 @@ module TextAlignment
     ["”", '"'],        #U+201D (right double quotation mark)
     ['"', "''"]
   ]
-end

@@ -11,10 +11,10 @@ TextAlignment::SIMILARITY_THRESHOLD = 0.7 unless defined? TextAlignment::SIMILAR
 
 class << TextAlignment
 
-	# It finds, among the sources, the right divisions for the taraget text to fit in.
-	def find_divisions(target, sources, mappings = [])
-		raise ArgumentError, "nil target"           if target == nil
-		raise ArgumentError, "nil or empty sources" if sources == nil || sources.empty?
+	# It finds, among the targets, the right divisions for the taraget text to fit in.
+	def find_divisions(source, targets, mappings = [])
+		raise ArgumentError, "nil source"           if source == nil
+		raise ArgumentError, "nil or empty targets" if targets == nil || targets.empty?
 		raise ArgumentError, "nil mappings"         if mappings == nil
 
 		character_mappings = mappings.select{|m| m[0].length == 1 && m[1].length == 1}
@@ -23,33 +23,33 @@ class << TextAlignment
 		characters_to   = character_mappings.collect{|m| m[1]}.join
 		characters_to.gsub!(/-/, '\-')
 
-		target.tr!(characters_from, characters_to)
-		sources.each{|source| source[:text].tr!(characters_from, characters_to)}
+		source.tr!(characters_from, characters_to)
+		targets.each{|target| target[:text].tr!(characters_from, characters_to)}
 
 		# to process smaller ones first
-		sources.sort!{|s1, s2| s1[:text].size <=> s2[:text].size}
+		targets.sort!{|s1, s2| s1[:text].size <=> s2[:text].size}
 
-		TextAlignment._find_divisions(target, sources)
+		TextAlignment._find_divisions(source, targets)
 	end
 
-	def _find_divisions(_target, _sources)
+	def _find_divisions(_source, _targets)
 		indice = []
 		history = []
 		cache = {}
-		target = _target.dup
-		sources = _sources.dup
-		until target.strip.empty? || sources.empty?
+		source = _source.dup
+		targets = _targets.dup
+		until source.strip.empty? || targets.empty?
 			mode, cmp = nil, nil
 			candidates = []
-			sources.each_with_index do |source, i|
-				if target.size < source[:text].size
+			targets.each_with_index do |target, i|
+				if source.size < target[:text].size
 					mode = :t_in_s
-					str1 = target
-					str2 = source[:text]
+					str1 = source
+					str2 = target[:text]
 				else
 					mode = :s_in_t
-					str1 = source[:text]
-					str2 = target
+					str1 = target[:text]
+					str2 = source
 				end
 
 				len1 = str1.length
@@ -58,7 +58,7 @@ class << TextAlignment
 				offset_begin, offset_end = if (len2 - len1) > len1 * (1 - TextAlignment::SIMILARITY_THRESHOLD)
 					approximate_fit(str1, str2)
 				else
-					# the whole target
+					# the whole source
 					[0, -1]
 				end
 
@@ -77,7 +77,7 @@ class << TextAlignment
 				end
 			end
 
-			# return remaining target and sources if m.nil?
+			# return remaining source and targets if m.nil?
 			break if candidates.empty?
 
 			choice = candidates.max{|a, b| a[:cmp].similarity <=> a[:cmp].similarity}
@@ -85,14 +85,14 @@ class << TextAlignment
 			mode = choice[:mode]
 
 			index = if mode == :t_in_s
-				{divid:sources[m][:divid], region:[0, target.size]}
+				{divid:targets[m][:divid], region:[0, source.size]}
 			else # :s_in_t
 				cmp = choice[:cmp]
 				offset = choice[:offset]
-				{divid:sources[m][:divid], region:[cmp.str2_match_initial + offset, cmp.str2_match_final + offset + 1]}
+				{divid:targets[m][:divid], region:[cmp.str2_match_initial + offset, cmp.str2_match_final + offset + 1]}
 			end
 
-			target = target[0 ... index[:region][0]] + target[index[:region][1] .. -1]
+			source = source[0 ... index[:region][0]] + source[index[:region][1] .. -1]
 			history << index[:region].dup
 
 			before_begin = index[:region][0]
@@ -108,31 +108,31 @@ class << TextAlignment
 
 			indice << index
 
-			sources.delete_at(m)
+			targets.delete_at(m)
 		end
 
-		unless target.strip.empty? && sources.empty?
+		unless source.strip.empty? && targets.empty?
 			index = {divid:nil}
-			index[:remaining_target] = target unless target.strip.empty?
-			index[:remaining_sources] = sources.collect{|s| s[:divid]} unless sources.empty?
+			index[:remaining_source] = source unless source.strip.empty?
+			index[:remaining_targets] = targets.collect{|s| s[:divid]} unless targets.empty?
 			indice << index
 		end
 
 		indice
 	end
 
-	def _find_divisions_old(target, sources)
+	def _find_divisions_old(source, targets)
 		mode, m, c, offset_begin = nil, nil, nil, nil
 
-		sources.each_with_index do |source, i|
-			if target.size < source[:text].size
+		targets.each_with_index do |target, i|
+			if source.size < target[:text].size
 				mode = :t_in_s
-				str1 = target
-				str2 = source[:text]
+				str1 = source
+				str2 = target[:text]
 			else
 				mode = :s_in_t
-				str1 = source[:text]
-				str2 = target
+				str1 = target[:text]
+				str2 = source
 			end
 
 			len1 = str1.length
@@ -150,22 +150,22 @@ class << TextAlignment
 			end
 		end
 
-		# return remaining target and sources if m.nil?
-		return [[-1, [target, sources.collect{|s| s[:divid]}]]] if m.nil?
+		# return remaining source and targets if m.nil?
+		return [[-1, [source, targets.collect{|s| s[:divid]}]]] if m.nil?
 
 		index = if mode == :t_in_s
-			[sources[m][:divid], [0, target.size]]
+			[targets[m][:divid], [0, source.size]]
 		else # :s_in_t
-			[sources[m][:divid], [c.str2_match_initial + offset_begin, c.str2_match_final + offset_begin + 1]]
+			[targets[m][:divid], [c.str2_match_initial + offset_begin, c.str2_match_final + offset_begin + 1]]
 		end
 
-		next_target = target[0 ... index[1][0]] + target[index[1][1] .. -1]
-		sources.delete_at(m)
+		next_source = source[0 ... index[1][0]] + source[index[1][1] .. -1]
+		targets.delete_at(m)
 
-		if next_target.strip.empty? || sources.empty?
+		if next_source.strip.empty? || targets.empty?
 			return [index]
 		else
-			more_index = _find_divisions(next_target, sources)
+			more_index = _find_divisions(next_source, targets)
 			gap = index[1][1] - index[1][0]
 			more_index.each do |i|
 				if (i[0] > -1)
@@ -182,22 +182,22 @@ end
 if __FILE__ == $0
 	require 'json'
 	if ARGV.length == 2
-		target  = JSON.parse File.read(ARGV[0]), :symbolize_names => true
-		target_text = target[:text].strip
+		source  = JSON.parse File.read(ARGV[0]), :symbolize_names => true
+		source_text = source[:text].strip
 
-		sources = JSON.parse File.read(ARGV[1]), :symbolize_names => true
-		div_index = TextAlignment::find_divisions(target_text, sources)
+		targets = JSON.parse File.read(ARGV[1]), :symbolize_names => true
+		div_index = TextAlignment::find_divisions(source_text, targets)
 		pp div_index
 
 		# str1 = File.read(ARGV[0]).strip
 		# str2 = File.read(ARGV[1]).strip
 		# div_index = TextAlignment::find_divisions(str1, [str2])
 
-		# puts "target length: #{target_text.length}"
+		# puts "source length: #{source_text.length}"
 		# div_index.each do |i|
 		#   unless i[:divid].nil?
 		#     puts "[Div: #{i[:divid]}] (#{i[:region][0]}, #{i[:region][1]})"
-		#     puts target_text[i[:region][0] ... i[:region][1]]
+		#     puts source_text[i[:region][0] ... i[:region][1]]
 		#     puts "=========="
 		#   else
 		#     p i
@@ -205,7 +205,7 @@ if __FILE__ == $0
 
 		#   # if i[0] >= 0
 		#   #   puts "[Div: #{i[0]}] (#{i[1][0]}, #{i[1][1]})"
-		#   #   puts target_text[i[1][0] ... i[1][1]]
+		#   #   puts source_text[i[1][0] ... i[1][1]]
 		#   #   puts "=========="
 		#   # else
 		#   #   p i

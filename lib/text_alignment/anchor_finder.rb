@@ -4,7 +4,7 @@ require 'string-similarity'
 module TextAlignment; end unless defined? TextAlignment
 
 TextAlignment::SIZE_NGRAM = 5 unless defined? TextAlignment::SIZE_NGRAM
-TextAlignment::SIZE_WINDOW = 20 unless defined? TextAlignment::SIZE_WINDOW
+TextAlignment::SIZE_WINDOW = 10 unless defined? TextAlignment::SIZE_WINDOW
 TextAlignment::TEXT_SIMILARITY_TRESHOLD = 0.7 unless defined? TextAlignment::TEXT_SIMILARITY_TRESHOLD
 
 class TextAlignment::AnchorFinder
@@ -43,6 +43,9 @@ class TextAlignment::AnchorFinder
 			# The loop above is terminated with beg_s2 == nil, which means no more anchor
 			break if @beg_s2.nil?
 
+			# if both the begining points are sufficiantly close to the end points of the last match
+			break if @end_s1_prev && (@beg_s1 - @end_s1_prev < 5) && (@beg_s2 - @end_s2_prev < 5)
+
 			left_window_s1, left_window_s2 = get_left_windows
 			break if left_window_s1  && text_similarity(left_window_s1, left_window_s2)  > TextAlignment::TEXT_SIMILARITY_TRESHOLD
 
@@ -68,6 +71,7 @@ class TextAlignment::AnchorFinder
 			e1 += 1; e2 += 1
 		end
 
+		@end_s1_prev = e1
 		@end_s2_prev = e2
 		@beg_s1 = e1
 

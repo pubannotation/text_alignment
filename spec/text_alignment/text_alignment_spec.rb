@@ -1,302 +1,235 @@
 require 'spec_helper'
+require 'json'
 
 describe TextAlignment::TextAlignment do
-  context 'for exception handling' do
-    it 'should raise error for passing of nil strings' do
-      expect {TextAlignment::TextAlignment.new('abc', nil)}.to raise_error
-      expect {TextAlignment::TextAlignment.new(nil, 'abc')}.to raise_error
-      expect {TextAlignment::TextAlignment.new(nil, nil)}.to raise_error
-    end
 
-    it 'should raise error for passing of nil dictionary' do
-      expect {TextAlignment::TextAlignment.new('abc', 'abc', nil)}.to raise_error
-    end
-  end
+	context "for oryza-10022841" do
+		before do
+			@source = JSON.parse File.read("spec/fixtures/oryza-10022841.json"), symbolize_names: true
+			@target = JSON.parse File.read("spec/fixtures/10022841.json"), symbolize_names: true
+			@answer = JSON.parse File.read("spec/fixtures/10022841-align.json"), symbolize_names: true
+		end
 
-  context 'in the beginning of a string' do
-    it 'should detect a deletion' do
-                      #012345    012
-      sa = TextAlignment::TextAlignment.new('xyzabc', 'abc')
-      expect(sa.position_map_begin).to eq({0=>0, 1=>0, 2=>0, 3=>0, 4=>1, 5=>2, 6=>3})
-      expect(sa.position_map_end).to eq({0=>0, 1=>0, 2=>0, 3=>0, 4=>1, 5=>2, 6=>3})
-      expect(sa.common_elements).to eq([['a', 'a'], ['b', 'b'], ['c', 'c']])
-      expect(sa.mapped_elements).to eq([])
-    end
+		it "should work" do
+			alignment = TextAlignment::TextAlignment.new(@source[:text], @target[:text])
+			denotations = alignment.transform_hdenotations(@source[:denotations])
+			lost_annotations = alignment.lost_annotations
+			expect(denotations).to eq(@answer[:denotations])
+		end
+	end
 
-    it 'should detect an addition' do
-                      #012    012345
-      sa = TextAlignment::TextAlignment.new('abc', 'xyzabc')
-      expect(sa.position_map_begin).to eq({0=>3, 1=>4, 2=>5, 3=>6})
-      expect(sa.position_map_end).to eq({0=>3, 1=>4, 2=>5, 3=>6})
-      expect(sa.common_elements).to eq([['a', 'a'], ['b', 'b'], ['c', 'c']])
-      expect(sa.mapped_elements).to eq([])
-    end
+	context "for oryza-10036778" do
+		before do
+			@source = JSON.parse File.read("spec/fixtures/oryza-10036778.json"), symbolize_names: true
+			@target = JSON.parse File.read("spec/fixtures/10036778.json"), symbolize_names: true
+			@answer = JSON.parse File.read("spec/fixtures/10036778-align.json"), symbolize_names: true
+		end
 
-    it 'should detect a variation' do
-                      #012345    01234
-      sa = TextAlignment::TextAlignment.new('ijkabc', 'xyabc')
-      expect(sa.position_map_begin).to eq({0=>0, 1=>nil, 2=>nil, 3=>2, 4=>3, 5=>4, 6=>5})
-      expect(sa.position_map_end).to eq({0=>0, 1=>nil, 2=>nil, 3=>2, 4=>3, 5=>4, 6=>5})
-      expect(sa.common_elements).to eq([['a', 'a'], ['b', 'b'], ['c', 'c']])
-      expect(sa.mapped_elements).to eq([['ijk', 'xy']])
-    end
-  end
+		it "should work" do
+			alignment = TextAlignment::TextAlignment.new(@source[:text], @target[:text])
+			denotations = alignment.transform_hdenotations(@source[:denotations])
+			lost_annotations = alignment.lost_annotations
+			expect(denotations).to eq(@answer[:denotations])
+		end
+	end
 
-  context 'in the end of a string' do
-    it 'should detect a deletion' do
-                      #012345    012
-      sa = TextAlignment::TextAlignment.new('abcxyz', 'abc')
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>2, 3=>3, 4=>3, 5=>3, 6=>3})
-      expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>2, 3=>3, 4=>3, 5=>3, 6=>3})
-      expect(sa.common_elements).to eq([['a', 'a'], ['b', 'b'], ['c', 'c']])
-      expect(sa.mapped_elements).to eq([])
-    end
+	context "for oryza-10050312" do
+		before do
+			@source = JSON.parse File.read("spec/fixtures/oryza-10050312.json"), symbolize_names: true
+			@target = JSON.parse File.read("spec/fixtures/10050312.json"), symbolize_names: true
+			@answer = JSON.parse File.read("spec/fixtures/10050312-align.json"), symbolize_names: true
+		end
 
-    it 'should detect an addition' do
-                      #012    012345
-      sa = TextAlignment::TextAlignment.new('abc', 'abcxyz')
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>2, 3=>6})
-      expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>2, 3=>3})
-      expect(sa.common_elements).to eq([['a', 'a'], ['b', 'b'], ['c', 'c']])
-      expect(sa.mapped_elements).to eq([])
-    end
+		it "should work" do
+			alignment = TextAlignment::TextAlignment.new(@source[:text], @target[:text])
+			denotations = alignment.transform_hdenotations(@source[:denotations])
+			lost_annotations = alignment.lost_annotations
+			expect(denotations).to eq(@answer[:denotations])
+		end
+	end
 
-    it 'should detect a variation' do
-                      #012345    01234
-      sa = TextAlignment::TextAlignment.new('abcijk', 'abcxy')
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>2, 3=>3, 4=>nil, 5=>nil, 6=>5})
-      expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>2, 3=>3, 4=>nil, 5=>nil, 6=>5})
-      expect(sa.common_elements).to eq([['a', 'a'], ['b', 'b'], ['c', 'c']])
-      expect(sa.mapped_elements).to eq([['ijk', 'xy']])
-    end
-  end
+	context "for oryza-10205906" do
+		before do
+			@source = JSON.parse File.read("spec/fixtures/oryza-10205906.json"), symbolize_names: true
+			@target = JSON.parse File.read("spec/fixtures/10205906.json"), symbolize_names: true
+			@answer = JSON.parse File.read("spec/fixtures/10205906-align.json"), symbolize_names: true
+		end
 
-  context 'in the middle of a string' do
-    it 'should detect a deletion' do
-                      #0123456    0123
-      sa = TextAlignment::TextAlignment.new('abxyzcd', 'abcd')
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>2, 3=>2, 4=>2, 5=>2, 6=>3, 7=>4})
-      expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>2, 3=>2, 4=>2, 5=>2, 6=>3, 7=>4})
-      expect(sa.common_elements).to eq([['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd']])
-      expect(sa.mapped_elements).to eq([])
-    end
+		it "should work" do
+			alignment = TextAlignment::TextAlignment.new(@source[:text], @target[:text])
+			denotations = alignment.transform_hdenotations(@source[:denotations])
+			lost_annotations = alignment.lost_annotations
+			expect(denotations).to eq(@answer[:denotations])
+		end
+	end
 
-    it 'should detect an addition' do
-                      #0123    0123456
-      sa = TextAlignment::TextAlignment.new('abcd', 'abxyzcd')
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>5, 3=>6, 4=>7})
-      expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>2, 3=>6, 4=>7})
-      expect(sa.common_elements).to eq([['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd']])
-      expect(sa.mapped_elements).to eq([])
-    end
+	context "for oryza-10527423" do
+		before do
+			@source = JSON.parse File.read("spec/fixtures/oryza-10527423.json"), symbolize_names: true
+			@target = JSON.parse File.read("spec/fixtures/10527423.json"), symbolize_names: true
+			@answer = JSON.parse File.read("spec/fixtures/10527423-align.json"), symbolize_names: true
+		end
 
-    it 'should detect a variation' do
-                      #0123456    012345
-      sa = TextAlignment::TextAlignment.new('abijkcd', 'abxycd')
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>2, 3=>nil, 4=>nil, 5=>4, 6=>5, 7=>6})
-      expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>2, 3=>nil, 4=>nil, 5=>4, 6=>5, 7=>6})
-      expect(sa.common_elements).to eq([['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd']])
-      expect(sa.mapped_elements).to eq([['ijk', 'xy']])
-    end
-  end
+		it "should work" do
+			alignment = TextAlignment::TextAlignment.new(@source[:text], @target[:text])
+			denotations = alignment.transform_hdenotations(@source[:denotations])
+			lost_annotations = alignment.lost_annotations
+			expect(denotations).to eq(@answer[:denotations])
+		end
+	end
 
-  context ', with a dictionary with the first entry, ' do
-    before(:all) do
-      @dictionary = [["β", "beta"]]
-    end
-    it 'should handle consecutive unicode spellouts in the middle of a string' do
-                      #0123    01234567890
-      sa = TextAlignment::TextAlignment.new('-βκ-', '-betakappa-', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>5, 3=>10, 4=>11})
-      expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>5, 3=>10, 4=>11})
-      expect(sa.common_elements).to match_array([['-', '-'], ['β', 'beta'], ['-', '-']])
-      expect(sa.mapped_elements).to eq([['κ', 'kappa']])
-    end
+	context "for oryza-10557360" do
+		before do
+			@source = JSON.parse File.read("spec/fixtures/oryza-10557360.json"), symbolize_names: true
+			@target = JSON.parse File.read("spec/fixtures/10557360.json"), symbolize_names: true
+			@answer = JSON.parse File.read("spec/fixtures/10557360-align.json"), symbolize_names: true
+		end
 
-    it 'should handle consecutive unicode spellouts in the end of a string' do
-                      #012    0123456789
-      sa = TextAlignment::TextAlignment.new('-βκ', '-betakappa', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>5, 3=>10})
-      expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>5, 3=>10})
-      expect(sa.common_elements).to match_array([['-', '-'], ['β', 'beta']])
-      expect(sa.mapped_elements).to eq([['κ', 'kappa']])
-    end
+		it "should work" do
+			alignment = TextAlignment::TextAlignment.new(@source[:text], @target[:text])
+			denotations = alignment.transform_hdenotations(@source[:denotations])
+			lost_annotations = alignment.lost_annotations
+			expect(denotations).to eq(@answer[:denotations])
+		end
+	end
 
-    it 'should handle consecutive unicode spellouts in the beginning of a string' do
-                      #012    0123456789
-      sa = TextAlignment::TextAlignment.new('βκ-', 'betakappa-', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>4, 2=>9, 3=>10})
-      expect(sa.position_map_end).to eq({0=>0, 1=>4, 2=>9, 3=>10})
-      expect(sa.common_elements).to match_array([['β', 'beta'], ['-', '-']])
-      expect(sa.mapped_elements).to eq([['κ', 'kappa']])
-    end
+	context "for oryza-11148291" do
+		before do
+			@source = JSON.parse File.read("spec/fixtures/oryza-11148291.json"), symbolize_names: true
+			@target = JSON.parse File.read("spec/fixtures/11148291.json"), symbolize_names: true
+			@answer = JSON.parse File.read("spec/fixtures/11148291-align.json"), symbolize_names: true
+		end
 
-    it 'should handle consecutive unicode restorations in the middle of a string' do
-                      #01234567890    0123
-      sa = TextAlignment::TextAlignment.new('-betakappa-', '-βκ-', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>nil, 3=>nil, 4=>nil, 5=>2, 6=>nil, 7=>nil, 8=>nil, 9=>nil, 10=>3, 11=>4})
-      expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>nil, 3=>nil, 4=>nil, 5=>2, 6=>nil, 7=>nil, 8=>nil, 9=>nil, 10=>3, 11=>4})
-    end
+		it "should work" do
+			alignment = TextAlignment::TextAlignment.new(@source[:text], @target[:text])
+			denotations = alignment.transform_hdenotations(@source[:denotations])
+			lost_annotations = alignment.lost_annotations
+			expect(denotations).to eq(@answer[:denotations])
+		end
+	end
 
-    it 'should handle consecutive unicode restorations in the beginning of a string' do
-                      #0123456789    012
-      sa = TextAlignment::TextAlignment.new('betakappa-', 'βκ-', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>nil, 2=>nil, 3=>nil, 4=>1, 5=>nil, 6=>nil, 7=>nil, 8=>nil, 9=>2, 10=>3})
-      expect(sa.position_map_end).to eq({0=>0, 1=>nil, 2=>nil, 3=>nil, 4=>1, 5=>nil, 6=>nil, 7=>nil, 8=>nil, 9=>2, 10=>3})
-    end
+	context "for oryza-12028574" do
+		before do
+			@source = JSON.parse File.read("spec/fixtures/oryza-12028574.json"), symbolize_names: true
+			@target = JSON.parse File.read("spec/fixtures/12028574.json"), symbolize_names: true
+			@answer = JSON.parse File.read("spec/fixtures/12028574-align.json"), symbolize_names: true
+		end
 
-    it 'should handle consecutive unicode restorations in the end of a string' do
-                      #0123456789    012
-      sa = TextAlignment::TextAlignment.new('-betakappa', '-βκ', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>nil, 3=>nil, 4=>nil, 5=>2, 6=>nil, 7=>nil, 8=>nil, 9=>nil, 10=>3})
-      expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>nil, 3=>nil, 4=>nil, 5=>2, 6=>nil, 7=>nil, 8=>nil, 9=>nil, 10=>3})
-    end
-  end
+		it "should work" do
+			alignment = TextAlignment::TextAlignment.new(@source[:text], @target[:text])
+			denotations = alignment.transform_hdenotations(@source[:denotations])
+			lost_annotations = alignment.lost_annotations
+			expect(denotations).to eq(@answer[:denotations])
+		end
+	end
 
-  context ', with a dictionary with the second entry, ' do
-    before(:all) do
-      @dictionary = [["κ", "kappa"]]
-    end
-    it 'should handle consecutive unicode spellouts in the middle of a string' do
-                      #0123    01234567890
-      sa = TextAlignment::TextAlignment.new('-βκ-', '-betakappa-', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>5, 3=>10, 4=>11})
-    end
+	context "for oryza-22973062" do
+		before do
+			@source = JSON.parse File.read("spec/fixtures/oryza-22973062.json"), symbolize_names: true
+			@target = JSON.parse File.read("spec/fixtures/22973062.json"), symbolize_names: true
+			@answer = JSON.parse File.read("spec/fixtures/22973062-align.json"), symbolize_names: true
+		end
 
-    it 'should handle consecutive unicode spellouts in the end of a string' do
-                      #012    0123456789
-      sa = TextAlignment::TextAlignment.new('-βκ', '-betakappa', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>5, 3=>10})
-    end
+		it "should work" do
+			alignment = TextAlignment::TextAlignment.new(@source[:text], @target[:text])
+			denotations = alignment.transform_hdenotations(@source[:denotations])
+			lost_annotations = alignment.lost_annotations
+			expect(denotations).to eq(@answer[:denotations])
+		end
+	end
 
-    it 'should handle consecutive unicode spellouts in the beginning of a string' do
-                      #012    0123456789
-      sa = TextAlignment::TextAlignment.new('βκ-', 'betakappa-', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>4, 2=>9, 3=>10})
-    end
+	context "for oryza-28666113" do
+		before do
+			@source = JSON.parse File.read("spec/fixtures/oryza-28666113.json"), symbolize_names: true
+			@target = JSON.parse File.read("spec/fixtures/28666113.json"), symbolize_names: true
+			@answer = JSON.parse File.read("spec/fixtures/28666113-align.json"), symbolize_names: true
+		end
 
-    it 'should handle consecutive unicode restorations in the middle of a string' do
-                      #01234567890    0123
-      sa = TextAlignment::TextAlignment.new('-betakappa-', '-βκ-', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>nil, 3=>nil, 4=>nil, 5=>2, 6=>nil, 7=>nil, 8=>nil, 9=>nil, 10=>3, 11=>4})
-    end
+		it "should work" do
+			alignment = TextAlignment::TextAlignment.new(@source[:text], @target[:text])
+			denotations = alignment.transform_hdenotations(@source[:denotations])
+			lost_annotations = alignment.lost_annotations
+			expect(denotations).to eq(@answer[:denotations])
+		end
+	end
 
-    it 'should handle consecutive unicode restorations in the beginning of a string' do
-                      #0123456789    012
-      sa = TextAlignment::TextAlignment.new('betakappa-', 'βκ-', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>nil, 2=>nil, 3=>nil, 4=>1, 5=>nil, 6=>nil, 7=>nil, 8=>nil, 9=>2, 10=>3})
-    end
+	context "for PMC-1310901-GE" do
+		before do
+			@source = JSON.parse File.read("spec/fixtures/PMC-1310901-GE.json"), symbolize_names: true
+			@target = File.read("spec/fixtures/PMC-1310901.txt")
+			@answer = JSON.parse File.read("spec/fixtures/PMC-1310901-align.json"), symbolize_names: true
+		end
 
-    it 'should handle consecutive unicode restorations in the end of a string' do
-                      #0123456789    012
-      sa = TextAlignment::TextAlignment.new('-betakappa', '-βκ', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>nil, 3=>nil, 4=>nil, 5=>2, 6=>nil, 7=>nil, 8=>nil, 9=>nil, 10=>3})
-    end
-  end
+		it "should work" do
+			result = align_mdoc(@source, {text:@target})
+			expect(result[:denotations]).to eq(@answer[:denotations])
+		end
+	end
 
-  context ', with a dictionary with both entries, ' do
-    before(:all) do
-      @dictionary = [["β", "beta"], ["κ", "kappa"]]
-    end
-    it 'should handle consecutive unicode spellouts in the middle of a string' do
-                      #0123    01234567890
-      sa = TextAlignment::TextAlignment.new('-βκ-', '-betakappa-', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>5, 3=>10, 4=>11})
-    end
+	context "for 00a0ab182dc01b6c2e737dfae585f050dcf9a7a5" do
+		before do
+			@source = JSON.parse File.read("spec/fixtures/00a0ab182dc01b6c2e737dfae585f050dcf9a7a5.json"), symbolize_names: true
+			@target = JSON.parse File.read("spec/fixtures/00a0ab182dc01b6c2e737dfae585f050dcf9a7a5-PA.json"), symbolize_names: true
+			@answer = JSON.parse File.read("spec/fixtures/00a0ab182dc01b6c2e737dfae585f050dcf9a7a5-align.json"), symbolize_names: true
+		end
 
-    it 'should handle consecutive unicode spellouts in the end of a string' do
-                      #012    0123456789
-      sa = TextAlignment::TextAlignment.new('-βκ', '-betakappa', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>5, 3=>10})
-    end
+		it "should work" do
+			alignment = TextAlignment::TextAlignment.new(@source[:text], @target[:text])
+			denotations = alignment.transform_hdenotations(@source[:denotations])
+			lost_annotations = alignment.lost_annotations
+			expect(denotations).to eq(@answer[:denotations])
+		end
+	end
 
-    it 'should handle consecutive unicode spellouts in the beginning of a string' do
-                      #012    0123456789
-      sa = TextAlignment::TextAlignment.new('βκ-', 'betakappa-', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>4, 2=>9, 3=>10})
-    end
+	def align_mdoc(source_annotations, target_annotations)
+		idnum_denotations = 0
+		idnum_relations = 0
+		idnum_attributes = 0
+		idnum_modifications = 0
 
-    it 'should handle consecutive unicode restorations in the middle of a string' do
-                      #01234567890    0123
-      sa = TextAlignment::TextAlignment.new('-betakappa-', '-βκ-', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>nil, 3=>nil, 4=>nil, 5=>2, 6=>nil, 7=>nil, 8=>nil, 9=>nil, 10=>3, 11=>4})
-    end
+		source_annotations.each do |annotations|
+			alignment = TextAlignment::TextAlignment.new(annotations[:text], target_annotations[:text])
 
-    it 'should handle consecutive unicode restorations in the beginning of a string' do
-                      #0123456789    012
-      sa = TextAlignment::TextAlignment.new('betakappa-', 'βκ-', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>nil, 2=>nil, 3=>nil, 4=>1, 5=>nil, 6=>nil, 7=>nil, 8=>nil, 9=>2, 10=>3})
-    end
+			if annotations.has_key?(:denotations) && !annotations[:denotations].empty?
+				ididx = {}
+				denotations = alignment.transform_hdenotations(annotations[:denotations])
+				denotations.each do |d|
+					reid = 'T' + (idnum_denotations += 1).to_s
+					ididx[d[:id]] = reid
+					d[:id] = reid
+				end
+				target_annotations[:denotations] = [] unless target_annotations.has_key? :denotations
+				target_annotations[:denotations] += denotations
 
-    it 'should handle consecutive unicode restorations in the end of a string' do
-                      #0123456789    012
-      sa = TextAlignment::TextAlignment.new('-betakappa', '-βκ', @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>nil, 3=>nil, 4=>nil, 5=>2, 6=>nil, 7=>nil, 8=>nil, 9=>nil, 10=>3})
-    end
-  end
+				if annotations.has_key?(:relations) && !annotations[:relations].empty?
+					target_annotations[:relations] = [] unless target_annotations.has_key? :relations
+					annotations[:relations].each do |r|
+						reid = 'R' + (idnum_relations += 1).to_s
+						ididx[r[:id]] = reid
+						target_annotations[:relations] << r.dup.merge({id:reid, subj:ididx[r[:subj]], obj:ididx[r[:obj]]})
+					end
+				end
 
-  context ', with a dictionary, ' do
-    before(:all) do
-      @dictionary = [["β", "beta"], ["κ", "kappa"]]
-    end
+				if annotations.has_key?(:attributes) && !annotations[:attributes].empty?
+					target_annotations[:attributes] = [] unless target_annotations.has_key? :attributes
+					annotations[:attributes].each do |a|
+						reid = 'A' + (idnum_attributes += 1).to_s
+						ididx[a[:id]] = reid
+						target_annotations[:attributes] << a.dup.merge({id:reid, subj:ididx[a[:subj]]})
+					end
+				end
 
-    it 'should handle a unicode spellout followed by addition' do
-                      #012    012345678
-      sa = TextAlignment::TextAlignment.new("-β-", "-beta***-", @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>8, 3=>9})
-      expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>5, 3=>9})
-    end
+				if annotations.has_key?(:modifications) && !annotations[:modifications].empty?
+					target_annotations[:modifications] = [] unless target_annotations.has_key? :modifications
+					annotations[:modifications].each do |m|
+						reid = 'M' + (idnum_modifications += 1).to_s
+						ididx[m[:id]] = reid
+						target_annotations[:modifications] << m.dup.merge({id:reid, obj:ididx[m[:obj]]})
+					end
+				end
+			end
+		end
+		target_annotations
+	end
 
-    it 'should handle a unicode retoration followed by addition' do
-                      #012345    012345
-      sa = TextAlignment::TextAlignment.new("-beta-", "-β***-", @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>nil, 3=>nil, 4=>nil, 5=>5, 6=>6})
-      expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>nil, 3=>nil, 4=>nil, 5=>2, 6=>6})
-    end
-
-    it 'should handle a unicode spellout followed by deletion' do
-                      #012345    012345
-      sa = TextAlignment::TextAlignment.new("-β***-", "-beta-", @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>5, 3=>5, 4=>5, 5=>5, 6=>6})
-    end
-
-    it 'should handle a unicode retoration followed by deletion' do
-                      #012345678    0123
-      sa = TextAlignment::TextAlignment.new("-beta***-", "-β-", @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>nil, 3=>nil, 4=>nil, 5=>2, 6=>2, 7=>2, 8=>2, 9=>3})
-    end
-
-    it 'should handle a unicode spellout following addition' do
-                      #012    012345678
-      sa = TextAlignment::TextAlignment.new("-β-", "-***beta-", @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>4, 2=>8, 3=>9})
-      expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>8, 3=>9})
-    end
-
-    it 'should handle a unicode retoration following addition' do
-                      #012345    012345
-      sa = TextAlignment::TextAlignment.new("-beta-", "-***β-", @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>4, 2=>nil, 3=>nil, 4=>nil, 5=>5, 6=>6})
-      expect(sa.position_map_end).to eq({0=>0, 1=>1, 2=>nil, 3=>nil, 4=>nil, 5=>5, 6=>6})
-    end
-
-    it 'should handle a unicode spellout following deletion' do
-                      #012345    012345
-      sa = TextAlignment::TextAlignment.new("-***β-", "-beta-", @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>1, 3=>1, 4=>1, 5=>5, 6=>6})
-    end
-
-    it 'should handle a unicode retoration following deletion' do
-                      #012345678    012
-      sa = TextAlignment::TextAlignment.new("-***beta-", "-β-", @dictionary)
-      expect(sa.position_map_begin).to eq({0=>0, 1=>1, 2=>1, 3=>1, 4=>1, 5=>nil, 6=>nil, 7=>nil, 8=>2, 9=>3})
-    end
-
-  end
-
-  from_text = "-beta***-"
-  to_text = "-##β-"
-
-  from_text = "TGF-beta-induced"
-  to_text = "TGF-β–induced"
 end

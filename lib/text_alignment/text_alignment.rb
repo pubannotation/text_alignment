@@ -12,8 +12,10 @@ class TextAlignment::TextAlignment
 	attr_reader :similarity
 	attr_reader :lost_annotations
 
-	def initialize(str1, str2)
+	def initialize(str1, str2, mappings = nil)
 		raise ArgumentError, "nil string" if str1.nil? || str2.nil?
+
+		mappings ||= TextAlignment::MAPPINGS
 
 		# try exact match
 		block_begin = str2.index(str1)
@@ -74,7 +76,7 @@ class TextAlignment::TextAlignment
 
 						@block_alignments << {source:{begin:0, end:b1}, target:{begin:0, end:b2}, alignment: :empty} if b1 > 0
 
-						alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, TextAlignment::MAPPINGS)
+						alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, mappings)
 						if alignment.similarity < 0.6
 							@block_alignments << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment: :empty}
 						else
@@ -97,7 +99,7 @@ class TextAlignment::TextAlignment
 				if _str2.strip.empty?
 					@block_alignments << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
 				else
-					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, TextAlignment::MAPPINGS)
+					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, mappings)
 					if alignment.similarity < 0.6
 						@block_alignments << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
 					else
@@ -137,7 +139,7 @@ class TextAlignment::TextAlignment
 					e1 = _str1.length < len_buffer ? str1.length : b1 + len_buffer
 					e2 = _str2.length < len_buffer ? str1.length : b2 + len_buffer
 
-					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, TextAlignment::MAPPINGS)
+					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, mappings)
 					if alignment.similarity < 0.6
 						@block_alignments << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
 					else

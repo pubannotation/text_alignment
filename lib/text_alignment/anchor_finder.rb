@@ -67,7 +67,7 @@ class TextAlignment::AnchorFinder
 
 		e1 = @beg_s1 + @size_ngram
 		e2 = @beg_s2 + @size_ngram
-		while @s1[e1] == @s2[e2]
+		while @s1[e1] && @s1[e1] == @s2[e2]
 			e1 += 1; e2 += 1
 		end
 

@@ -199,21 +199,21 @@ class TextAlignment::TextAlignment
 	end
 
 	def transform_denotations!(denotations)
-		return nil unless denotations.nil?
+		return nil if denotations.nil?
 		@lost_annotations = []
 
-		r = denotations.map! do |d|
+		denotations.each do |d|
 			begin
 				d.begin = transform_begin_position(d.begin);
 				d.end = transform_end_position(d.end);
-				d
 			rescue
 				@lost_annotations << d
-				nil
+				d.begin = nil
+				d.end = nil
 			end
-		end.compact
+		end
 
-		r
+		@lost_annotations
 	end
 
 	def transform_hdenotations(hdenotations)

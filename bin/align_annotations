@@ -103,8 +103,35 @@ target_annotations = if source_annotations.class == Array
 else
 	alignment = TextAlignment::TextAlignment.new(source_annotations[:text], target_text)
 
+	# verification
+	source_text = source_annotations[:text]
+	puts "=====BEGIN"
+	(0 ... source_text.length).each do |p|
+		t = alignment.transform_begin_position(p)
+		if t.nil?
+			print source_text[p]
+		else
+			print '.'
+		end
+	end
+	puts
+	puts "=====END"
+
+	puts "=====BEGIN"
+	(0 .. source_text.length).each do |p|
+		t = alignment.transform_end_position(p)
+		if t.nil?
+			print source_text[p]
+		else
+			print '.'
+		end
+	end
+	puts
+	puts "=====END"
+
 	pp alignment
 
+	exit
 	# alignment.block_alignments.each do |a|
 	# 	if a[:alignment].nil? || a[:alignment] == :empty
 	# 		# p [a[:source], a[:target]]
@@ -121,7 +148,22 @@ else
 	# end
 	# exit
 
+	# verification of source denotations
+	puts "[Invalid source denotations]"
+	source_annotations[:denotations] do |d|
+		p d unless d[:span][:begin] && d[:span][:end] && d[:span][:begin] < d[:span][:end] && d[:span][:begin] >= 0 && d[:span][:end] < source_text.length
+	end
+	puts "====="
+	puts
+
 	denotations = alignment.transform_hdenotations(source_annotations[:denotations])
+	puts "[Invalid transformation]"
+	denotations.each do |d|
+		p d unless d[:span][:begin] && d[:span][:end] && d[:span][:begin] < d[:span][:end] && d[:span][:begin] >= 0 && d[:span][:end] < target_text.length
+	end
+	puts "====="
+	puts
+
 	lost_annotations += alignment.lost_annotations if alignment.lost_annotations
 
 	source_annotations.merge({text:target_text, denotations:denotations})

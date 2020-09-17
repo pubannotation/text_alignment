@@ -6,6 +6,8 @@ module TextAlignment; end unless defined? TextAlignment
 
 TextAlignment::SIGNATURE_NGRAM = 7 unless defined? TextAlignment::SIGNATURE_NGRAM
 TextAlignment::BUFFER_RATE = 0.1 unless defined? TextAlignment::BUFFER_RATE
+TextAlignment::BUFFER_MIN = 10 unless defined? TextAlignment::BUFFER_MIN
+
 
 class TextAlignment::TextAlignment
 	attr_reader :block_alignments
@@ -38,17 +40,17 @@ class TextAlignment::TextAlignment
 			end
 		end
 
-		# mblocks.each do |b|
-		# 	p [b[:source], b[:target]]
-		# 	puts "---"
-		# 	puts str1[b[:source][:begin] ... b[:source][:end]]
-		# 	puts "---"
-		# 	puts str2[b[:target][:begin] ... b[:target][:end]]
-		# 	puts "====="
-		# 	puts
-		# end
-		# puts "-=-=-=-=-"
-		# puts
+		mblocks.each do |b|
+			p [b[:source], b[:target]]
+			puts "---"
+			puts str1[b[:source][:begin] ... b[:source][:end]]
+			puts "---"
+			puts str2[b[:target][:begin] ... b[:target][:end]]
+			puts "====="
+			puts
+		end
+		puts "-=-=-=-=-"
+		puts
 
 		## To find block alignments
 		@block_alignments = []
@@ -70,7 +72,7 @@ class TextAlignment::TextAlignment
 						@block_alignments << {source:{begin:0, end:e1}, target:{begin:0, end:e2}, alignment: :empty}
 					else
 						len_min = [_str1.length, _str2.length].min
-						len_buffer = (len_min * (1 + TextAlignment::BUFFER_RATE)).to_i
+						len_buffer = (len_min * (1 + TextAlignment::BUFFER_RATE)).to_i + TextAlignment::BUFFER_MIN
 						b1 = _str1.length < len_buffer ? 0 : e1 - len_buffer
 						b2 = _str2.length < len_buffer ? 0 : e2 - len_buffer
 
@@ -135,9 +137,11 @@ class TextAlignment::TextAlignment
 					@block_alignments << {source:{begin:b1, end:str1.length}, target:{begin:b2, end:str2.length}, alignment: :empty}
 				else
 					len_min = [_str1.length, _str2.length].min
-					len_buffer = (len_min * (1 + TextAlignment::BUFFER_RATE)).to_i
+					len_buffer = (len_min * (1 + TextAlignment::BUFFER_RATE)).to_i + TextAlignment::BUFFER_MIN
 					e1 = _str1.length < len_buffer ? str1.length : b1 + len_buffer
-					e2 = _str2.length < len_buffer ? str1.length : b2 + len_buffer
+					e2 = _str2.length < len_buffer ? str2.length : b2 + len_buffer
+					_str1 = str1[b1 ... e1]
+					_str2 = str2[b2 ... e2]
 
 					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, mappings)
 					if alignment.similarity < 0.6
@@ -166,9 +170,12 @@ class TextAlignment::TextAlignment
 			if begin_position == block_alignment[:source][:begin]
 				block_alignment[:target][:begin]
 			else
-				raise "lost annotation"
+				# raise "lost annotation"
+				nil
 			end
 		else
+			p begin_position
+			puts "-----"
 			block_alignment[:alignment].transform_begin_position(begin_position - block_alignment[:source][:begin]) + block_alignment[:target][:begin]
 		end
 	end
@@ -183,7 +190,8 @@ class TextAlignment::TextAlignment
 			if end_position == block_alignment[:source][:end]
 				block_alignment[:target][:end]
 			else
-				raise "lost annotation"
+				# raise "lost annotation"
+				nil
 			end
 		else
 			block_alignment[:alignment].transform_end_position(end_position - block_alignment[:source][:begin]) + block_alignment[:target][:begin]

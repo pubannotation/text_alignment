@@ -3,9 +3,9 @@ require 'string-similarity'
 
 module TextAlignment; end unless defined? TextAlignment
 
-TextAlignment::SIZE_NGRAM = 5 unless defined? TextAlignment::SIZE_NGRAM
-TextAlignment::SIZE_WINDOW = 10 unless defined? TextAlignment::SIZE_WINDOW
-TextAlignment::TEXT_SIMILARITY_TRESHOLD = 0.7 unless defined? TextAlignment::TEXT_SIMILARITY_TRESHOLD
+TextAlignment::SIZE_NGRAM = 10 unless defined? TextAlignment::SIZE_NGRAM
+TextAlignment::SIZE_WINDOW = 40 unless defined? TextAlignment::SIZE_WINDOW
+TextAlignment::TEXT_SIMILARITY_TRESHOLD = 0.8 unless defined? TextAlignment::TEXT_SIMILARITY_TRESHOLD
 
 class TextAlignment::AnchorFinder
 
@@ -23,44 +23,41 @@ class TextAlignment::AnchorFinder
 
 		# current position in s1
 		@beg_s1 = 0
+		@end_s1_prev = 0
+		@end_s2_prev = 0
 	end
 
 	def get_next_anchor
 		# find the position of an anchor ngram in s1 and s2
-		@beg_s2 = nil
 		while @beg_s1 < (@s1.length - @size_ngram)
-			while @beg_s1 < (@s1.length - @size_ngram)
-				anchor = @s1[@beg_s1, @size_ngram]
-				@beg_s2 = if defined? @end_s2_prev
-					@s2.index(anchor, @end_s2_prev)
-				else
-					@s2.index(anchor)
-				end
-				break unless @beg_s2.nil?
-				@beg_s1 += 1
+			anchor = @s1[@beg_s1, @size_ngram]
+
+			search_position = 0
+			# search_position = @end_s2_prev
+			while @beg_s2 = @s2.index(anchor, search_position)
+				# if both the begining points are sufficiantly close to the end points of the last match
+				break if @end_s1_prev && (@beg_s1 - @end_s1_prev < 5) && (@beg_s2 >= @end_s2_prev) && (@beg_s2 - @end_s2_prev < 5)
+
+				left_window_s1, left_window_s2 = get_left_windows
+				break if left_window_s1 && (text_similarity(left_window_s1, left_window_s2) > TextAlignment::TEXT_SIMILARITY_TRESHOLD)
+
+				right_window_s1, right_window_s2 = get_right_windows
+				break if right_window_s2 && (text_similarity(right_window_s1, right_window_s2) > TextAlignment::TEXT_SIMILARITY_TRESHOLD)
+
+				search_position = @beg_s2 + 1
 			end
 
-			# The loop above is terminated with beg_s2 == nil, which means no more anchor
-			break if @beg_s2.nil?
-
-			# if both the begining points are sufficiantly close to the end points of the last match
-			break if @end_s1_prev && (@beg_s1 - @end_s1_prev < 5) && (@beg_s2 - @end_s2_prev < 5)
-
-			left_window_s1, left_window_s2 = get_left_windows
-			break if left_window_s1  && text_similarity(left_window_s1, left_window_s2)  > TextAlignment::TEXT_SIMILARITY_TRESHOLD
-
-			right_window_s1, right_window_s2 = get_right_windows
-			break if right_window_s2 && text_similarity(right_window_s1, left_window_s2) > TextAlignment::TEXT_SIMILARITY_TRESHOLD
+			break unless @beg_s2.nil?
 
 			@beg_s1 += 1
 		end
 
-		return nil if @beg_s2.nil?
+		return nil if @beg_s1 >= (@s1.length - @size_ngram)
 
 		# extend the block
 		b1 = @beg_s1
 		b2 = @beg_s2
-		while b1 > -1 && b2 > -1 && @s1[b1] == @s2[b2]
+		while b1 >= @end_s1_prev && b2 > -1 && @s1[b1] == @s2[b2]
 			b1 -= 1; b2 -= 1
 		end
 		b1 += 1; b2 += 1
@@ -113,7 +110,7 @@ class TextAlignment::AnchorFinder
 	end
 
 	def get_right_windows
-		return if (@beg_s1 + @size_ngram < (@s1.length - @size_window)) || (@beg_s2 + @size_ngram < (@s2.length - @size_window))
+		return if (@beg_s1 + @size_ngram > (@s1.length - @size_window)) || (@beg_s2 + @size_ngram > (@s2.length - @size_window))
 
 		window_s1 = ''
 		loc = @beg_s1 + @size_ngram
@@ -143,6 +140,7 @@ class TextAlignment::AnchorFinder
 	end
 
 	def text_similarity(str1, str2, ngram_order = 2)
+		return 0 if str1.nil? || str2.nil?
 		String::Similarity.cosine(str1, str2, ngram:ngram_order)
 	end
 

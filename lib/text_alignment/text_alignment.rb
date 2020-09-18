@@ -40,17 +40,17 @@ class TextAlignment::TextAlignment
 			end
 		end
 
-		mblocks.each do |b|
-			p [b[:source], b[:target]]
-			puts "---"
-			puts str1[b[:source][:begin] ... b[:source][:end]]
-			puts "---"
-			puts str2[b[:target][:begin] ... b[:target][:end]]
-			puts "====="
-			puts
-		end
-		puts "-=-=-=-=-"
-		puts
+		# mblocks.each do |b|
+		# 	p [b[:source], b[:target]]
+		# 	puts "---"
+		# 	puts str1[b[:source][:begin] ... b[:source][:end]]
+		# 	puts "---"
+		# 	puts str2[b[:target][:begin] ... b[:target][:end]]
+		# 	puts "====="
+		# 	puts
+		# end
+		# puts "-=-=-=-=-"
+		# puts
 
 		## To find block alignments
 		@block_alignments = []
@@ -174,9 +174,8 @@ class TextAlignment::TextAlignment
 				nil
 			end
 		else
-			p begin_position
-			puts "-----"
-			block_alignment[:alignment].transform_begin_position(begin_position - block_alignment[:source][:begin]) + block_alignment[:target][:begin]
+			r = block_alignment[:alignment].transform_begin_position(begin_position - block_alignment[:source][:begin])
+			r.nil? ? nil : r + block_alignment[:target][:begin]
 		end
 	end
 
@@ -194,7 +193,8 @@ class TextAlignment::TextAlignment
 				nil
 			end
 		else
-			block_alignment[:alignment].transform_end_position(end_position - block_alignment[:source][:begin]) + block_alignment[:target][:begin]
+			r = block_alignment[:alignment].transform_end_position(end_position - block_alignment[:source][:begin])
+			r.nil? ? nil : r + block_alignment[:target][:begin]
 		end
 	end
 

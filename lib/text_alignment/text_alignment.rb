@@ -40,6 +40,10 @@ class TextAlignment::TextAlignment
 			end
 		end
 
+		pp mblocks
+		puts "-----"
+		puts
+
 		# mblocks.each do |b|
 		# 	p [b[:source], b[:target]]
 		# 	puts "---"

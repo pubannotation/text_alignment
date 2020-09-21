@@ -103,6 +103,8 @@ target_annotations = if source_annotations.class == Array
 else
 	alignment = TextAlignment::TextAlignment.new(source_annotations[:text], target_text)
 
+	pp alignment
+
 	# verification
 	source_text = source_annotations[:text]
 	puts "=====BEGIN"
@@ -129,9 +131,6 @@ else
 	puts
 	puts "=====END"
 
-	pp alignment
-
-	exit
 	# alignment.block_alignments.each do |a|
 	# 	if a[:alignment].nil? || a[:alignment] == :empty
 	# 		# p [a[:source], a[:target]]

@@ -40,10 +40,9 @@ class TextAlignment::TextAlignment
 			end
 		end
 
-		pp mblocks
-		puts "-----"
-		puts
-
+		# pp mblocks
+		# puts "-----"
+		# puts
 		# mblocks.each do |b|
 		# 	p [b[:source], b[:target]]
 		# 	puts "---"
@@ -82,6 +81,8 @@ class TextAlignment::TextAlignment
 
 						@block_alignments << {source:{begin:0, end:b1}, target:{begin:0, end:b2}, alignment: :empty} if b1 > 0
 
+						_str1 = str1[b1 ... e1]
+						_str2 = str2[b2 ... e2]
 						alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, mappings)
 						if alignment.similarity < 0.6
 							@block_alignments << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment: :empty}
@@ -117,19 +118,6 @@ class TextAlignment::TextAlignment
 		end
 
 		# Final step
-		if mblocks[-1][:source][:end] < str1.length
-			b1 = mblocks[-1][:source][:end]
-			b2 = mblocks[-1][:target][:end]
-
-			if mblocks[-1][:target][:end] < str2.length
-
-			else
-				e1 = str1.length
-				e2 = str2.length
-				@block_alignments << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
-			end
-		end
-
 		if  mblocks[-1][:source][:end] < str1.length && mblocks[-1][:target][:end] < str2.length
 			b1 = mblocks[-1][:source][:end]
 			b2 = mblocks[-1][:target][:end]

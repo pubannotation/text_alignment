@@ -121,8 +121,8 @@ class TextAlignment::TextAlignment
 		if  mblocks[-1][:source][:end] < str1.length && mblocks[-1][:target][:end] < str2.length
 			b1 = mblocks[-1][:source][:end]
 			b2 = mblocks[-1][:target][:end]
-			_str1 = str1[b1 ... -1]
-			_str2 = str2[b2 ... -1]
+			_str1 = str1[b1 ... str1.length]
+			_str2 = str2[b2 ... str2.length]
 
 			unless _str1.strip.empty?
 				if _str2.strip.empty?

@@ -3,7 +3,7 @@ require 'string-similarity'
 
 module TextAlignment; end unless defined? TextAlignment
 
-TextAlignment::SIZE_NGRAM = 10 unless defined? TextAlignment::SIZE_NGRAM
+TextAlignment::SIZE_NGRAM = 8 unless defined? TextAlignment::SIZE_NGRAM
 TextAlignment::SIZE_WINDOW = 40 unless defined? TextAlignment::SIZE_WINDOW
 TextAlignment::TEXT_SIMILARITY_TRESHOLD = 0.8 unless defined? TextAlignment::TEXT_SIMILARITY_TRESHOLD
 
@@ -36,7 +36,7 @@ class TextAlignment::AnchorFinder
 			search_position = @end_s2_prev
 			while @beg_s2 = @s2.index(anchor, search_position)
 				# if both the begining points are sufficiantly close to the end points of the last match
-				break if @end_s1_prev && (@beg_s1 - @end_s1_prev < 5) && (@beg_s2 >= @end_s2_prev) && (@beg_s2 - @end_s2_prev < 5)
+				break if @beg_s1 > 0 && @beg_s2 > 0 && (@beg_s1 - @end_s1_prev < 5) && (@beg_s2 >= @end_s2_prev) && (@beg_s2 - @end_s2_prev < 5)
 
 				left_window_s1, left_window_s2 = get_left_windows
 				break if left_window_s1 && (text_similarity(left_window_s1, left_window_s2) > TextAlignment::TEXT_SIMILARITY_TRESHOLD)

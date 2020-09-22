@@ -3,7 +3,7 @@ require 'string-similarity'
 
 module TextAlignment; end unless defined? TextAlignment
 
-TextAlignment::SIZE_NGRAM = 8 unless defined? TextAlignment::SIZE_NGRAM
+TextAlignment::SIZE_NGRAM = 10 unless defined? TextAlignment::SIZE_NGRAM
 TextAlignment::SIZE_WINDOW = 40 unless defined? TextAlignment::SIZE_WINDOW
 TextAlignment::TEXT_SIMILARITY_TRESHOLD = 0.8 unless defined? TextAlignment::TEXT_SIMILARITY_TRESHOLD
 

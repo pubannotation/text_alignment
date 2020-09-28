@@ -30,6 +30,10 @@ class TextAlignment::AnchorFinder
 	def get_next_anchor
 		# find the position of an anchor ngram in s1 and s2
 		while @beg_s1 < (@s1.length - @size_ngram)
+			if [' ', "\n", "\t"].include? @s1[@beg_s1]
+				@beg_s1 += 1
+				next
+			end
 			anchor = @s1[@beg_s1, @size_ngram]
 
 			# search_position = 0
@@ -57,9 +61,10 @@ class TextAlignment::AnchorFinder
 		# extend the block
 		b1 = @beg_s1
 		b2 = @beg_s2
-		while b1 >= @end_s1_prev && b2 > -1 && @s1[b1] == @s2[b2]
+		while b1 >= @end_s1_prev && b2 >= @end_s2_prev && @s1[b1] == @s2[b2]
 			b1 -= 1; b2 -= 1
 		end
+
 		b1 += 1; b2 += 1
 
 		e1 = @beg_s1 + @size_ngram

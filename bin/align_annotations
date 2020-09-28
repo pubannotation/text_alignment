@@ -108,7 +108,7 @@ else
 	# verification
 	source_text = source_annotations[:text]
 	puts "=====BEGIN"
-	(0 ... source_text.length).each do |p|
+	(0 ... source_text.rstrip.length).each do |p|
 		t = alignment.transform_begin_position(p)
 		if t.nil?
 			print source_text[p]
@@ -120,7 +120,7 @@ else
 	puts "=====END"
 
 	puts "=====BEGIN"
-	(0 .. source_text.length).each do |p|
+	(0 .. source_text.rstrip.length).each do |p|
 		t = alignment.transform_end_position(p)
 		if t.nil?
 			print source_text[p]

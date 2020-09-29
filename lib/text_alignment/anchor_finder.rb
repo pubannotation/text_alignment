@@ -87,7 +87,8 @@ class TextAlignment::AnchorFinder
 	private
 
 	def get_left_windows
-		return if @beg_s1 < @size_window || @beg_s2 < @size_window
+		# commend below with the assumption that the beginning of a document gives a significant locational information
+		# return if @beg_s1 < @size_window || @beg_s2 < @size_window
 
 		window_s1 = ''
 		loc = @beg_s1 - 1
@@ -115,7 +116,8 @@ class TextAlignment::AnchorFinder
 	end
 
 	def get_right_windows
-		return if (@beg_s1 + @size_ngram > (@s1.length - @size_window)) || (@beg_s2 + @size_ngram > (@s2.length - @size_window))
+		# commend below with the assumption that the end of a document gives a significant locational
+		# return if (@beg_s1 + @size_ngram > (@s1.length - @size_window)) || (@beg_s2 + @size_ngram > (@s2.length - @size_window))
 
 		window_s1 = ''
 		loc = @beg_s1 + @size_ngram

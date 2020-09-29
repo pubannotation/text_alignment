@@ -6,7 +6,7 @@ module TextAlignment; end unless defined? TextAlignment
 
 TextAlignment::SIGNATURE_NGRAM = 7 unless defined? TextAlignment::SIGNATURE_NGRAM
 TextAlignment::BUFFER_RATE = 0.1 unless defined? TextAlignment::BUFFER_RATE
-TextAlignment::BUFFER_MIN = 10 unless defined? TextAlignment::BUFFER_MIN
+TextAlignment::BUFFER_MIN = 20 unless defined? TextAlignment::BUFFER_MIN
 
 
 class TextAlignment::TextAlignment

@@ -1,18 +1,15 @@
 #!/usr/bin/env ruby
+require 'text_alignment/constants'
 require 'string-similarity'
 
 module TextAlignment; end unless defined? TextAlignment
-
-TextAlignment::SIZE_NGRAM = 8 unless defined? TextAlignment::SIZE_NGRAM
-TextAlignment::SIZE_WINDOW = 40 unless defined? TextAlignment::SIZE_WINDOW
-TextAlignment::TEXT_SIMILARITY_TRESHOLD = 0.8 unless defined? TextAlignment::TEXT_SIMILARITY_TRESHOLD
 
 class TextAlignment::AnchorFinder
 
 	def initialize(source_str, target_str, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
 		@size_ngram  = _size_ngram  || TextAlignment::SIZE_NGRAM
 		@size_window = _size_window || TextAlignment::SIZE_WINDOW
-		@sim_threshold = _size_window || TextAlignment::TEXT_SIMILARITY_TRESHOLD
+		@sim_threshold = _text_similiarity_threshold || TextAlignment::TEXT_SIMILARITY_THRESHOLD
 
 		@reverse = (target_str.length < source_str.length)
 

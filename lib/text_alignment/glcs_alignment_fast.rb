@@ -9,8 +9,6 @@ require 'text_alignment/mappings'
 
 module TextAlignment; end unless defined? TextAlignment
 
-TextAlignment::SIGNATURE_NGRAM = 5 unless defined? TextAlignment::SIGNATURE_NGRAM
-
 class TextAlignment::GLCSTextAlignment
 	attr_reader :position_map_begin, :position_map_end
 	attr_reader :common_elements, :mapped_elements

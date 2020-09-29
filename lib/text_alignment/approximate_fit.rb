@@ -1,13 +1,11 @@
 #!/usr/bin/env ruby
+require 'text_alignment/constants'
 require 'string-similarity'
 
 module TextAlignment; end unless defined? TextAlignment
 
 # approximate the location of str1 in str2
-TextAlignment::SIGNATURE_NGRAM = 7 unless defined? TextAlignment::SIGNATURE_NGRAM
 TextAlignment::MIN_LENGTH_FOR_APPROXIMATION = 50 unless defined? TextAlignment::MIN_LENGTH_FOR_APPROXIMATION
-TextAlignment::BUFFER_RATE = 0.1 unless defined? TextAlignment::BUFFER_RATE
-TextAlignment::TEXT_SIMILARITY_TRESHOLD = 0.7 unless defined? TextAlignment::TEXT_SIMILARITY_TRESHOLD
 
 class << TextAlignment
 
@@ -16,8 +14,8 @@ class << TextAlignment
 		raise ArgumentError, 'nil string' if str1.nil? || str2.nil?
 		return 0, str2.length if str2.length < TextAlignment::MIN_LENGTH_FOR_APPROXIMATION
 
-		ngram1 = (0 .. str1.length - TextAlignment::SIGNATURE_NGRAM).collect{|i| str1[i, TextAlignment::SIGNATURE_NGRAM]}
-		ngram2 = (0 .. str2.length - TextAlignment::SIGNATURE_NGRAM).collect{|i| str2[i, TextAlignment::SIGNATURE_NGRAM]}
+		ngram1 = (0 .. str1.length - TextAlignment::SIZE_NGRAM).collect{|i| str1[i, TextAlignment::SIZE_NGRAM]}
+		ngram2 = (0 .. str2.length - TextAlignment::SIZE_NGRAM).collect{|i| str2[i, TextAlignment::SIZE_NGRAM]}
 		ngram_shared = ngram1 & ngram2
 
 		# If there is no shared n-gram found, it may mean there is no serious overlap between the two strings
@@ -45,7 +43,7 @@ class << TextAlignment
 			text_similarity = text_similarity(str1, str2[fit_begin ... fit_end])
 			cache["#{fit_begin}-#{fit_end}"] = text_similarity
 
-			break if text_similarity > TextAlignment::TEXT_SIMILARITY_TRESHOLD
+			break if text_similarity > TextAlignment::TEXT_SIMILARITY_THRESHOLD
 			fit_begin, fit_end = nil, nil
 		end
 		return fit_begin, fit_end if fit_begin && fit_end && fit_begin < fit_end

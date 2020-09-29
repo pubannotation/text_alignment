@@ -1,21 +1,21 @@
 #!/usr/bin/env ruby
+require 'text_alignment/constants'
 require 'text_alignment/anchor_finder'
 require 'text_alignment/mixed_alignment'
 
 module TextAlignment; end unless defined? TextAlignment
-
-TextAlignment::SIGNATURE_NGRAM = 7 unless defined? TextAlignment::SIGNATURE_NGRAM
-TextAlignment::BUFFER_RATE = 0.1 unless defined? TextAlignment::BUFFER_RATE
-TextAlignment::BUFFER_MIN = 20 unless defined? TextAlignment::BUFFER_MIN
-
 
 class TextAlignment::TextAlignment
 	attr_reader :block_alignments
 	attr_reader :similarity
 	attr_reader :lost_annotations
 
-	def initialize(str1, str2, mappings = nil)
+	def initialize(str1, str2, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
 		raise ArgumentError, "nil string" if str1.nil? || str2.nil?
+
+		size_ngram  = _size_ngram  || TextAlignment::SIZE_NGRAM
+		size_window = _size_window || TextAlignment::SIZE_WINDOW
+		sim_threshold = _text_similiarity_threshold || TextAlignment::TEXT_SIMILARITY_THRESHOLD
 
 		mappings ||= TextAlignment::MAPPINGS
 
@@ -26,7 +26,7 @@ class TextAlignment::TextAlignment
 			return @block_alignments
 		end
 
-		anchor_finder = TextAlignment::AnchorFinder.new(str1, str2)
+		anchor_finder = TextAlignment::AnchorFinder.new(str1, str2, size_ngram, size_window, sim_threshold)
 
 		# To collect matched blocks
 		mblocks = []

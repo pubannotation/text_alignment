@@ -9,9 +9,10 @@ TextAlignment::TEXT_SIMILARITY_TRESHOLD = 0.8 unless defined? TextAlignment::TEX
 
 class TextAlignment::AnchorFinder
 
-	def initialize(source_str, target_str, _size_ngram = nil, _size_window = nil)
+	def initialize(source_str, target_str, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
 		@size_ngram  = _size_ngram  || TextAlignment::SIZE_NGRAM
 		@size_window = _size_window || TextAlignment::SIZE_WINDOW
+		@sim_threshold = _size_window || TextAlignment::TEXT_SIMILARITY_TRESHOLD
 
 		@reverse = (target_str.length < source_str.length)
 
@@ -43,10 +44,10 @@ class TextAlignment::AnchorFinder
 				break if @beg_s1 > 0 && @beg_s2 > 0 && (@beg_s1 - @end_s1_prev < 5) && (@beg_s2 >= @end_s2_prev) && (@beg_s2 - @end_s2_prev < 5)
 
 				left_window_s1, left_window_s2 = get_left_windows
-				break if left_window_s1 && (text_similarity(left_window_s1, left_window_s2) > TextAlignment::TEXT_SIMILARITY_TRESHOLD)
+				break if left_window_s1 && (text_similarity(left_window_s1, left_window_s2) > @sim_threshold)
 
 				right_window_s1, right_window_s2 = get_right_windows
-				break if right_window_s2 && (text_similarity(right_window_s1, right_window_s2) > TextAlignment::TEXT_SIMILARITY_TRESHOLD)
+				break if right_window_s2 && (text_similarity(right_window_s1, right_window_s2) > @sim_threshold)
 
 				search_position = @beg_s2 + 1
 			end

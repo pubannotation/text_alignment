@@ -5,19 +5,17 @@ require 'text_alignment/mixed_alignment'
 
 module TextAlignment; end unless defined? TextAlignment
 
+TextAlignment::PADDING_LETTERS = ['@', '^', '|', '#', '$', '%', '&', '_'] unless defined? TextAlignment::PADDING_LETTERS
+
 class TextAlignment::TextAlignment
 	attr_reader :block_alignments
 	attr_reader :similarity
 	attr_reader :lost_annotations
 
-	def initialize(str1, str2, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
-		raise ArgumentError, "nil string" if str1.nil? || str2.nil?
+	def initialize(_str1, _str2, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
+		raise ArgumentError, "nil string" if _str1.nil? || _str2.nil?
 
-		size_ngram  = _size_ngram  || TextAlignment::SIZE_NGRAM
-		size_window = _size_window || TextAlignment::SIZE_WINDOW
-		sim_threshold = _text_similiarity_threshold || TextAlignment::TEXT_SIMILARITY_THRESHOLD
-
-		mappings ||= TextAlignment::MAPPINGS
+		str1, str2, mappings = string_preprocessing(_str1, _str2)
 
 		# try exact match
 		block_begin = str2.index(str1)
@@ -26,7 +24,7 @@ class TextAlignment::TextAlignment
 			return @block_alignments
 		end
 
-		anchor_finder = TextAlignment::AnchorFinder.new(str1, str2, size_ngram, size_window, sim_threshold)
+		anchor_finder = TextAlignment::AnchorFinder.new(str1, str2, _size_ngram, _size_window, _text_similiarity_threshold)
 
 		# To collect matched blocks
 		mblocks = []
@@ -230,6 +228,62 @@ class TextAlignment::TextAlignment
 		end.compact
 
 		r
+	end
+
+	private
+
+
+	def string_preprocessing(_str1, _str2)
+		str1 = _str1.dup
+		str2 = _str2.dup
+		mappings = TextAlignment::MAPPINGS.dup
+
+		## single character mappings
+		character_mappings = mappings.select{|m| m[0].length == 1 && m[1].length == 1}
+		characters_from = character_mappings.collect{|m| m[0]}.join
+		characters_to   = character_mappings.collect{|m| m[1]}.join
+		characters_to.gsub!(/-/, '\-')
+
+		str1.tr!(characters_from, characters_to)
+		str2.tr!(characters_from, characters_to)
+
+		mappings.delete_if{|m| m[0].length == 1 && m[1].length == 1}
+
+		## long to one character mappings
+		pletters = TextAlignment::PADDING_LETTERS
+
+		# find the padding letter for str1
+		padding_letter1 = begin
+			i = pletters.index{|l| str2.index(l).nil?}
+			raise RuntimeError, "Could not find a padding letter for str1" if i.nil?
+			TextAlignment::PADDING_LETTERS[i]
+		end
+
+		# find the padding letter for str2
+		padding_letter2 = begin
+			i = pletters.index{|l| l != padding_letter1 && str1.index(l).nil?}
+			raise RuntimeError, "Could not find a padding letter for str2" if i.nil?
+			TextAlignment::PADDING_LETTERS[i]
+		end
+
+		# ASCII foldings
+		ascii_foldings = mappings.select{|m| m[0].length == 1 && m[1].length > 1}
+		ascii_foldings.each do |f|
+			from = f[1]
+
+			if str2.index(f[0])
+				to   = f[0] + (padding_letter1 * (f[1].length - 1))
+				str1.gsub!(from, to)
+			end
+
+			if str1.index(f[0])
+				to   = f[0] + (padding_letter2 * (f[1].length - 1))
+				str2.gsub!(from, to)
+			end
+		end
+		mappings.delete_if{|m| m[0].length == 1 && m[1].length > 1}
+
+		[str1, str2, mappings]
 	end
 
 end

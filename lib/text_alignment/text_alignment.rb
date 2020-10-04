@@ -15,10 +15,20 @@ class TextAlignment::TextAlignment
 	def initialize(_str1, _str2, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
 		raise ArgumentError, "nil string" if _str1.nil? || _str2.nil?
 
+		@ostr1 = _str1
+		@ostr2 = _str2
+
 		str1, str2, mappings = string_preprocessing(_str1, _str2)
 
 		# try exact match
 		block_begin = str2.index(str1)
+		unless block_begin.nil?
+			@block_alignments = [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin}]
+			return @block_alignments
+		end
+
+		# try exact match
+		block_begin = str2.downcase.index(str1.downcase)
 		unless block_begin.nil?
 			@block_alignments = [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin}]
 			return @block_alignments
@@ -91,7 +101,7 @@ class TextAlignment::TextAlignment
 				end
 			end
 		end
-		@block_alignments << mblocks[0]
+		@block_alignments << mblocks[0].merge(alignment: :block)
 
 		(1 ... mblocks.length).each do |i|
 			b1 = mblocks[i - 1][:source][:end]
@@ -112,7 +122,7 @@ class TextAlignment::TextAlignment
 					end
 				end
 			end
-			@block_alignments << mblocks[i]
+			@block_alignments << mblocks[i].merge(alignment: :block)
 		end
 
 		# Final step
@@ -154,7 +164,7 @@ class TextAlignment::TextAlignment
 		i = @block_alignments.index{|b| b[:source][:end] > begin_position}
 		block_alignment = @block_alignments[i]
 
-		b = if block_alignment[:alignment].nil?
+		b = if block_alignment[:alignment] == :block
 			begin_position + block_alignment[:delta]
 		elsif block_alignment[:alignment] == :empty
 			if begin_position == block_alignment[:source][:begin]
@@ -173,7 +183,7 @@ class TextAlignment::TextAlignment
 		i = @block_alignments.index{|b| b[:source][:end] >= end_position}
 		block_alignment = @block_alignments[i]
 
-		e = if block_alignment[:alignment].nil?
+		e = if block_alignment[:alignment] == :block
 			end_position + block_alignment[:delta]
 		elsif block_alignment[:alignment] == :empty
 			if end_position == block_alignment[:source][:end]
@@ -230,8 +240,126 @@ class TextAlignment::TextAlignment
 		r
 	end
 
-	private
+	def alignment_table
+		table = <<-TABLE
+			<table class='text_alignment_table'>
+				<thead>
+					<tr>
+						<th class='text_alignment_left' style='width:50%'>Text 1</th>
+						<th class='text_alignment_rigt'>Text 2</th>
+					</tr>
+				</thead>
+				<tbody>
+		TABLE
 
+		@block_alignments.each do |a|
+			table += alignment_table_th(a)
+			table += "<tr>\n" + case a[:alignment]
+			when :block
+				"<td colspan='2' class='text_alignment_common'>" +
+				@ostr1[a[:source][:begin] ... a[:source][:end]] +
+				"</td>\n"
+			when :empty
+				"<td class='text_alignment_left'>"  + @ostr1[a[:source][:begin] ... a[:source][:end]] + "</td>\n" +
+				"<td class='text_alignment_right'>" + @ostr2[a[:target][:begin] ... a[:target][:end]] + "</td>\n"
+			else
+				base = a[:source][:begin]
+				astr1 = a[:alignment].sdiff.map do |c|
+					case c.action
+					when '='
+						@ostr1[c.old_position + base]
+					when '+'
+						'_'
+					when '-'
+						@ostr1[c.old_position + base]
+					when '!'
+						@ostr1[c.old_position + base] + '_'
+					end
+				end.join('')
+
+				base = a[:target][:begin]
+				astr2 = a[:alignment].sdiff.map do |c|
+					case c.action
+					when '='
+						@ostr2[c.new_position + base]
+					when '+'
+						@ostr2[c.new_position + base]
+					when '-'
+						'_'
+					when '!'
+						'_' + @ostr2[c.new_position + base]
+					end
+				end.join('')
+
+				"<td class='text_alignment_left'>"  + astr1 + "</td>\n" +
+				"<td class='text_alignment_right'>" + astr2 + "</td>\n"
+			end + "</tr>\n"
+		end
+		table += '</tbody></table>'
+	end
+
+	def alignment_table_th(a)
+		"<tr>" +
+		"<th class='text_alignment_left'>#{a[:source][:begin]} - #{a[:source][:end]}</th>" +
+		"<th class='text_alignment_right'>#{a[:target][:begin]} - #{a[:target][:end]}</th>" +
+		"</tr>"
+	end
+
+	def alignment_show
+		show = ''
+		@block_alignments.each do |a|
+			show += case a[:alignment]
+			when :block
+				"===== common =====\n" +
+				@ostr1[a[:source][:begin] ... a[:source][:end]] + "\n\n"
+			when :empty
+				puts "<<<<< string 1"
+				p @ostr1[a[:source][:begin] ... a[:source][:end]]
+				puts
+				puts ">>>>> string 2"
+				p @ostr2[a[:target][:begin] ... a[:target][:end]]
+				puts
+			else
+				puts "***** local mismatch"
+				astr1 = ''
+				astr2 = ''
+
+				base = a[:source][:begin]
+				astr1 = a[:alignment].sdiff.map do |c|
+					case c.action
+					when '='
+						@ostr1[c.old_position + base]
+					when '+'
+						'_'
+					when '-'
+						@ostr1[c.old_position + base]
+					when '!'
+						@ostr1[c.old_position + base] + '_'
+					end
+				end.join('')
+
+				base = a[:target][:begin]
+				astr2 = a[:alignment].sdiff.map do |c|
+					case c.action
+					when '='
+						@ostr2[c.new_position + base]
+					when '+'
+						@ostr2[c.new_position + base]
+					when '-'
+						'_'
+					when '!'
+						'_' + @ostr2[c.new_position + base]
+					end
+				end.join('')
+
+				puts '[' + astr1 + ']'
+				puts '[' + astr2 + ']'
+				puts
+			end
+		end
+	end
+
+	private
 
 	def string_preprocessing(_str1, _str2)
 		str1 = _str1.dup

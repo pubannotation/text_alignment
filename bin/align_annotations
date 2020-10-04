@@ -35,6 +35,10 @@ def align_mdoc(source_annotations, target_annotations)
 	source_annotations.each do |annotations|
 		alignment = TextAlignment::TextAlignment.new(annotations[:text], target_annotations[:text])
 
+		puts alignment.alignment_show
+		puts "-----"
+		puts
+
 		# alignment.block_alignments.each do |a|
 			# p {source:a[:source], target:a[:target]}
 			# puts "--"
@@ -134,7 +138,7 @@ else
 	source_text = source_annotations[:text]
 
 	# puts "[block alignment]"
-	puts alignment.alignment_table
+	puts alignment.alignment_show
 	# puts "====="
 	# exit
 

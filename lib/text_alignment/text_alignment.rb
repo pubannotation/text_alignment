@@ -23,14 +23,14 @@ class TextAlignment::TextAlignment
 		# try exact match
 		block_begin = str2.index(str1)
 		unless block_begin.nil?
-			@block_alignments = [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin}]
+			@block_alignments = [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
 			return @block_alignments
 		end
 
 		# try exact match
 		block_begin = str2.downcase.index(str1.downcase)
 		unless block_begin.nil?
-			@block_alignments = [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin}]
+			@block_alignments = [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
 			return @block_alignments
 		end
 
@@ -313,14 +313,11 @@ class TextAlignment::TextAlignment
 				"===== common =====\n" +
 				@ostr1[a[:source][:begin] ... a[:source][:end]] + "\n\n"
 			when :empty
-				puts "<<<<< string 1"
-				p @ostr1[a[:source][:begin] ... a[:source][:end]]
-				puts
-				puts ">>>>> string 2"
-				p @ostr2[a[:target][:begin] ... a[:target][:end]]
-				puts
+				"<<<<< string 1\n" +
+				@ostr1[a[:source][:begin] ... a[:source][:end]] + "\n\n" +
+				">>>>> string 2\n" +
+				@ostr2[a[:target][:begin] ... a[:target][:end]] + "\n\n"
 			else
-				puts "***** local mismatch"
 				astr1 = ''
 				astr2 = ''
 
@@ -352,11 +349,12 @@ class TextAlignment::TextAlignment
 					end
 				end.join('')
 
-				puts '[' + astr1 + ']'
-				puts '[' + astr2 + ']'
-				puts
+				"***** local mismatch\n" +
+				"[#{astr1}]\n" +
+				"[#{astr2}]\n\n"
 			end
 		end
+		show
 	end
 
 	private

@@ -137,26 +137,26 @@ else
 
 	source_text = source_annotations[:text]
 
-	# puts "[block alignment]"
+	puts "[block alignment]"
 	puts alignment.alignment_show
-	# puts "====="
+	puts "====="
 	# exit
 
 	# verification of source denotations
-	# puts "[Invalid source denotations]"
-	# source_annotations[:denotations] do |d|
-	# 	p d unless d[:span][:begin] && d[:span][:end] && d[:span][:begin] < d[:span][:end] && d[:span][:begin] >= 0 && d[:span][:end] < source_text.length
-	# end
-	# puts "====="
-	# puts
+	puts "[Invalid source denotations]"
+	source_annotations[:denotations] do |d|
+		p d unless d[:span][:begin] && d[:span][:end] && d[:span][:begin] < d[:span][:end] && d[:span][:begin] >= 0 && d[:span][:end] < source_text.length
+	end
+	puts "====="
+	puts
 
 	denotations = alignment.transform_hdenotations(source_annotations[:denotations])
-	# puts "[Invalid transformation]"
-	# denotations.each do |d|
-	# 	p d unless d[:span][:begin] && d[:span][:end] && d[:span][:begin] < d[:span][:end] && d[:span][:begin] >= 0 && d[:span][:end] < target_text.length
-	# end
-	# puts "====="
-	# puts
+	puts "[Invalid transformation]"
+	denotations.each do |d|
+		p d unless d[:span][:begin] && d[:span][:end] && d[:span][:begin] < d[:span][:end] && d[:span][:begin] >= 0 && d[:span][:end] < target_text.length
+	end
+	puts "====="
+	puts
 
 	lost_annotations += alignment.lost_annotations if alignment.lost_annotations
 

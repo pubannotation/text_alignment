@@ -354,12 +354,15 @@ class TextAlignment::TextAlignment
 	end
 
 	def alignment_similarity(_s1, _s2, alignment)
+		return 0 if alignment.sdiff.nil?
+
 		# compute the lcs only with non-whitespace letters
 		lcs = alignment.sdiff.count{|d| d.action == '=' && d.old_element =~ /\S/ && d.new_element =~ /\S/}
 
 		s1 = _s1.tr(@padding_letter1, ' ')
 		s2 = _s2.tr(@padding_letter2, ' ')
-		similarity  = 2 * lcs / (s1.scan(/\S/).count + s2.scan(/\S/).count).to_f
+
+		similarity = 2 * lcs / (s1.scan(/\S/).count + s2.scan(/\S/).count).to_f
 	end
 
 end

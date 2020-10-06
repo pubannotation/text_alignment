@@ -90,9 +90,9 @@ class TextAlignment::TextAlignment
 						_str2 = str2[b2 ... e2]
 						alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase)
 						if alignment.similarity < 0.5
-							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment: :empty, similarity: alignment.similarity}
+							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty, similarity: alignment.similarity}
 						else
-							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment:alignment, similarity: alignment.similarity}
+							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment, similarity: alignment.similarity}
 						end
 					end
 				end

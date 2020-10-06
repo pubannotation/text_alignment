@@ -12,12 +12,10 @@ class TextAlignment::TextAlignment
 	attr_reader :similarity
 	attr_reader :lost_annotations
 
-	def initialize(_str1, _str2, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
-		raise ArgumentError, "nil string" if _str1.nil? || _str2.nil?
+	def initialize(str1, str2, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
+		raise ArgumentError, "nil string" if str1.nil? || str2.nil?
 
-		@block_alignment = {source_text:_str1, target_text:_str2}
-
-		str1, str2, mappings = string_preprocessing(_str1, _str2)
+		@block_alignment = {source_text:str1, target_text:str2}
 
 		# try exact match
 		block_begin = str2.index(str1)
@@ -90,12 +88,11 @@ class TextAlignment::TextAlignment
 
 						_str1 = str1[b1 ... e1]
 						_str2 = str2[b2 ... e2]
-						alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, mappings)
-						similarity = alignment_similarity(_str1, _str2, alignment)
-						if similarity < 0.6
-							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment: :empty, similarity: similarity}
+						alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase)
+						if alignment.similarity < 0.5
+							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment: :empty, similarity: alignment.similarity}
 						else
-							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment:alignment}
+							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment:alignment, similarity: alignment.similarity}
 						end
 					end
 				end
@@ -114,12 +111,11 @@ class TextAlignment::TextAlignment
 				if _str2.strip.empty?
 					@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
 				else
-					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, mappings)
-					similarity = alignment_similarity(_str1, _str2, alignment)
-					if similarity < 0.6
-						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty, similarity: similarity}
+					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase)
+					if alignment.similarity < 0.5
+						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty, similarity: alignment.similarity}
 					else
-						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment}
+						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment, similarity: alignment.similarity}
 					end
 				end
 			end
@@ -144,12 +140,11 @@ class TextAlignment::TextAlignment
 					_str1 = str1[b1 ... e1]
 					_str2 = str2[b2 ... e2]
 
-					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, mappings)
-					similarity = alignment_similarity(_str1, _str2, alignment)
-					if similarity < 0.6
-						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty, similarity: similarity}
+					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase)
+					if alignment.similarity < 0.5
+						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty, similarity: alignment.similarity}
 					else
-						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment}
+						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment, similarity: alignment.similarity}
 					end
 
 					@block_alignment[:blocks] << {source:{begin:e1, end:-1}, target:{begin:e2, end:-1}, alignment: :empty} if e1 < str1.length
@@ -250,13 +245,13 @@ class TextAlignment::TextAlignment
 		@block_alignment[:blocks].each do |a|
 			show += case a[:alignment]
 			when :block
-				"===== common =====\n" +
+				"===== common ===== [#{a[:source][:begin]} - #{a[:source][:end]}] [#{a[:target][:begin]} - #{a[:target][:end]}]\n" +
 				stext[a[:source][:begin] ... a[:source][:end]] + "\n\n"
 			when :empty
 				"xxxxx disparate texts (similarity: #{a[:similarity]})\n" +
-				"<<<<< string 1\n" +
+				"<<<<< string 1 [#{a[:source][:begin]} - #{a[:source][:end]}]\n" +
 				stext[a[:source][:begin] ... a[:source][:end]] + "\n\n" +
-				">>>>> string 2\n" +
+				">>>>> string 2 [#{a[:target][:begin]} - #{a[:target][:end]}]\n" +
 				ttext[a[:target][:begin] ... a[:target][:end]] + "\n\n"
 			else
 				astr1 = ''
@@ -290,79 +285,12 @@ class TextAlignment::TextAlignment
 					end
 				end.join('')
 
-				"***** local mismatch\n" +
+				"***** local mismatch [#{a[:source][:begin]} - #{a[:source][:end]}] [#{a[:target][:begin]} - #{a[:target][:end]}] (similarity: #{a[:similarity]})\n" +
 				"[#{astr1}]\n" +
 				"[#{astr2}]\n\n"
 			end
 		end
 		show
-	end
-
-	private
-
-	def string_preprocessing(_str1, _str2)
-		str1 = _str1.dup
-		str2 = _str2.dup
-		mappings = TextAlignment::MAPPINGS.dup
-
-		## single character mappings
-		character_mappings = mappings.select{|m| m[0].length == 1 && m[1].length == 1}
-		characters_from = character_mappings.collect{|m| m[0]}.join
-		characters_to   = character_mappings.collect{|m| m[1]}.join
-		characters_to.gsub!(/-/, '\-')
-
-		str1.tr!(characters_from, characters_to)
-		str2.tr!(characters_from, characters_to)
-
-		mappings.delete_if{|m| m[0].length == 1 && m[1].length == 1}
-
-		## long to one character mappings
-		pletters = TextAlignment::PADDING_LETTERS
-
-		# find the padding letter for str1
-		@padding_letter1 = begin
-			i = pletters.index{|l| str2.index(l).nil?}
-			raise RuntimeError, "Could not find a padding letter for str1" if i.nil?
-			TextAlignment::PADDING_LETTERS[i]
-		end
-
-		# find the padding letter for str2
-		@padding_letter2 = begin
-			i = pletters.index{|l| l != @padding_letter1 && str1.index(l).nil?}
-			raise RuntimeError, "Could not find a padding letter for str2" if i.nil?
-			TextAlignment::PADDING_LETTERS[i]
-		end
-
-		# ASCII foldings
-		ascii_foldings = mappings.select{|m| m[0].length == 1 && m[1].length > 1}
-		ascii_foldings.each do |f|
-			from = f[1]
-
-			if str2.index(f[0])
-				to   = f[0] + (@padding_letter1 * (f[1].length - 1))
-				str1.gsub!(from, to)
-			end
-
-			if str1.index(f[0])
-				to   = f[0] + (@padding_letter2 * (f[1].length - 1))
-				str2.gsub!(from, to)
-			end
-		end
-		mappings.delete_if{|m| m[0].length == 1 && m[1].length > 1}
-
-		[str1, str2, mappings]
-	end
-
-	def alignment_similarity(_s1, _s2, alignment)
-		return 0 if alignment.sdiff.nil?
-
-		# compute the lcs only with non-whitespace letters
-		lcs = alignment.sdiff.count{|d| d.action == '=' && d.old_element =~ /\S/ && d.new_element =~ /\S/}
-
-		s1 = _s1.tr(@padding_letter1, ' ')
-		s2 = _s2.tr(@padding_letter2, ' ')
-
-		similarity = 2 * lcs / (s1.scan(/\S/).count + s2.scan(/\S/).count).to_f
 	end
 
 end

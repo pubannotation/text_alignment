@@ -8,30 +8,29 @@ module TextAlignment; end unless defined? TextAlignment
 TextAlignment::PADDING_LETTERS = ['@', '^', '|', '#', '$', '%', '&', '_'] unless defined? TextAlignment::PADDING_LETTERS
 
 class TextAlignment::TextAlignment
-	attr_reader :block_alignments
+	attr_reader :block_alignment
 	attr_reader :similarity
 	attr_reader :lost_annotations
 
 	def initialize(_str1, _str2, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
 		raise ArgumentError, "nil string" if _str1.nil? || _str2.nil?
 
-		@ostr1 = _str1
-		@ostr2 = _str2
+		@block_alignment = {source_text:_str1, target_text:_str2}
 
 		str1, str2, mappings = string_preprocessing(_str1, _str2)
 
 		# try exact match
 		block_begin = str2.index(str1)
 		unless block_begin.nil?
-			@block_alignments = [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
-			return @block_alignments
+			@block_alignment[:blocks] = [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
+			return @block_alignment
 		end
 
 		# try exact match
 		block_begin = str2.downcase.index(str1.downcase)
 		unless block_begin.nil?
-			@block_alignments = [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
-			return @block_alignments
+			@block_alignment[:blocks] = [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
+			return @block_alignment
 		end
 
 		anchor_finder = TextAlignment::AnchorFinder.new(str1, str2, _size_ngram, _size_window, _text_similiarity_threshold)
@@ -64,7 +63,7 @@ class TextAlignment::TextAlignment
 		# puts
 
 		## To find block alignments
-		@block_alignments = []
+		@block_alignment[:blocks] = []
 		return if mblocks.empty?
 
 		# Initial step
@@ -73,35 +72,35 @@ class TextAlignment::TextAlignment
 			e2 = mblocks[0][:target][:begin]
 
 			if mblocks[0][:target][:begin] == 0
-				@block_alignments << {source:{begin:0, end:e1}, target:{begin:0, end:0}, alignment: :empty}
+				@block_alignment[:blocks] << {source:{begin:0, end:e1}, target:{begin:0, end:0}, alignment: :empty}
 			else
 				_str1 = str1[0 ... e1]
 				_str2 = str2[0 ... e2]
 
 				unless _str1.strip.empty?
 					if _str2.strip.empty?
-						@block_alignments << {source:{begin:0, end:e1}, target:{begin:0, end:e2}, alignment: :empty}
+						@block_alignment[:blocks] << {source:{begin:0, end:e1}, target:{begin:0, end:e2}, alignment: :empty}
 					else
 						len_min = [_str1.length, _str2.length].min
 						len_buffer = (len_min * (1 + TextAlignment::BUFFER_RATE)).to_i + TextAlignment::BUFFER_MIN
 						b1 = _str1.length < len_buffer ? 0 : e1 - len_buffer
 						b2 = _str2.length < len_buffer ? 0 : e2 - len_buffer
 
-						@block_alignments << {source:{begin:0, end:b1}, target:{begin:0, end:b2}, alignment: :empty} if b1 > 0
+						@block_alignment[:blocks] << {source:{begin:0, end:b1}, target:{begin:0, end:b2}, alignment: :empty} if b1 > 0
 
 						_str1 = str1[b1 ... e1]
 						_str2 = str2[b2 ... e2]
 						alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, mappings)
 						if alignment.similarity < 0.6
-							@block_alignments << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment: :empty}
+							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment: :empty}
 						else
-							@block_alignments << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment:alignment}
+							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment:alignment}
 						end
 					end
 				end
 			end
 		end
-		@block_alignments << mblocks[0].merge(alignment: :block)
+		@block_alignment[:blocks] << mblocks[0].merge(alignment: :block)
 
 		(1 ... mblocks.length).each do |i|
 			b1 = mblocks[i - 1][:source][:end]
@@ -112,17 +111,17 @@ class TextAlignment::TextAlignment
 			_str2 = str2[b2 ... e2]
 			unless _str1.strip.empty?
 				if _str2.strip.empty?
-					@block_alignments << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
+					@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
 				else
 					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, mappings)
 					if alignment.similarity < 0.6
-						@block_alignments << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
+						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
 					else
-						@block_alignments << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment}
+						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment}
 					end
 				end
 			end
-			@block_alignments << mblocks[i].merge(alignment: :block)
+			@block_alignment[:blocks] << mblocks[i].merge(alignment: :block)
 		end
 
 		# Final step
@@ -134,7 +133,7 @@ class TextAlignment::TextAlignment
 
 			unless _str1.strip.empty?
 				if _str2.strip.empty?
-					@block_alignments << {source:{begin:b1, end:str1.length}, target:{begin:b2, end:str2.length}, alignment: :empty}
+					@block_alignment[:blocks] << {source:{begin:b1, end:str1.length}, target:{begin:b2, end:str2.length}, alignment: :empty}
 				else
 					len_min = [_str1.length, _str2.length].min
 					len_buffer = (len_min * (1 + TextAlignment::BUFFER_RATE)).to_i + TextAlignment::BUFFER_MIN
@@ -145,56 +144,56 @@ class TextAlignment::TextAlignment
 
 					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, mappings)
 					if alignment.similarity < 0.6
-						@block_alignments << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
+						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
 					else
-						@block_alignments << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment}
+						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment}
 					end
 
-					@block_alignments << {source:{begin:e1, end:-1}, target:{begin:e2, end:-1}, alignment: :empty} if e1 < str1.length
+					@block_alignment[:blocks] << {source:{begin:e1, end:-1}, target:{begin:e2, end:-1}, alignment: :empty} if e1 < str1.length
 				end
 			end
 		end
 
-		@block_alignments.each do |a|
+		@block_alignment[:blocks].each do |a|
 			a[:delta] = a[:target][:begin] - a[:source][:begin]
 		end
 	end
 
 	def transform_begin_position(begin_position)
-		i = @block_alignments.index{|b| b[:source][:end] > begin_position}
-		block_alignment = @block_alignments[i]
+		i = @block_alignment[:blocks].index{|b| b[:source][:end] > begin_position}
+		block = @block_alignment[:blocks][i]
 
-		b = if block_alignment[:alignment] == :block
-			begin_position + block_alignment[:delta]
-		elsif block_alignment[:alignment] == :empty
-			if begin_position == block_alignment[:source][:begin]
-				block_alignment[:target][:begin]
+		b = if block[:alignment] == :block
+			begin_position + block[:delta]
+		elsif block[:alignment] == :empty
+			if begin_position == block[:source][:begin]
+				block[:target][:begin]
 			else
 				# raise "lost annotation"
 				nil
 			end
 		else
-			r = block_alignment[:alignment].transform_begin_position(begin_position - block_alignment[:source][:begin])
-			r.nil? ? nil : r + block_alignment[:target][:begin]
+			r = block[:alignment].transform_begin_position(begin_position - block[:source][:begin])
+			r.nil? ? nil : r + block[:target][:begin]
 		end
 	end
 
 	def transform_end_position(end_position)
-		i = @block_alignments.index{|b| b[:source][:end] >= end_position}
-		block_alignment = @block_alignments[i]
+		i = @block_alignment[:blocks].index{|b| b[:source][:end] >= end_position}
+		block = @block_alignment[:blocks][i]
 
-		e = if block_alignment[:alignment] == :block
-			end_position + block_alignment[:delta]
-		elsif block_alignment[:alignment] == :empty
-			if end_position == block_alignment[:source][:end]
-				block_alignment[:target][:end]
+		e = if block[:alignment] == :block
+			end_position + block[:delta]
+		elsif block[:alignment] == :empty
+			if end_position == block[:source][:end]
+				block[:target][:end]
 			else
 				# raise "lost annotation"
 				nil
 			end
 		else
-			r = block_alignment[:alignment].transform_end_position(end_position - block_alignment[:source][:begin])
-			r.nil? ? nil : r + block_alignment[:target][:begin]
+			r = block[:alignment].transform_end_position(end_position - block[:source][:begin])
+			r.nil? ? nil : r + block[:target][:begin]
 		end
 	end
 
@@ -240,83 +239,21 @@ class TextAlignment::TextAlignment
 		r
 	end
 
-	def alignment_table
-		table = <<-TABLE
-			<table class='text_alignment_table'>
-				<thead>
-					<tr>
-						<th class='text_alignment_left' style='width:50%'>Text 1</th>
-						<th class='text_alignment_rigt'>Text 2</th>
-					</tr>
-				</thead>
-				<tbody>
-		TABLE
-
-		@block_alignments.each do |a|
-			table += alignment_table_th(a)
-			table += "<tr>\n" + case a[:alignment]
-			when :block
-				"<td colspan='2' class='text_alignment_common'>" +
-				@ostr1[a[:source][:begin] ... a[:source][:end]] +
-				"</td>\n"
-			when :empty
-				"<td class='text_alignment_left'>"  + @ostr1[a[:source][:begin] ... a[:source][:end]] + "</td>\n" +
-				"<td class='text_alignment_right'>" + @ostr2[a[:target][:begin] ... a[:target][:end]] + "</td>\n"
-			else
-				base = a[:source][:begin]
-				astr1 = a[:alignment].sdiff.map do |c|
-					case c.action
-					when '='
-						@ostr1[c.old_position + base]
-					when '+'
-						'_'
-					when '-'
-						@ostr1[c.old_position + base]
-					when '!'
-						@ostr1[c.old_position + base] + '_'
-					end
-				end.join('')
-
-				base = a[:target][:begin]
-				astr2 = a[:alignment].sdiff.map do |c|
-					case c.action
-					when '='
-						@ostr2[c.new_position + base]
-					when '+'
-						@ostr2[c.new_position + base]
-					when '-'
-						'_'
-					when '!'
-						'_' + @ostr2[c.new_position + base]
-					end
-				end.join('')
-
-				"<td class='text_alignment_left'>"  + astr1 + "</td>\n" +
-				"<td class='text_alignment_right'>" + astr2 + "</td>\n"
-			end + "</tr>\n"
-		end
-		table += '</tbody></table>'
-	end
-
-	def alignment_table_th(a)
-		"<tr>" +
-		"<th class='text_alignment_left'>#{a[:source][:begin]} - #{a[:source][:end]}</th>" +
-		"<th class='text_alignment_right'>#{a[:target][:begin]} - #{a[:target][:end]}</th>" +
-		"</tr>"
-	end
-
 	def alignment_show
+		stext = @block_alignment[:source_text]
+		ttext = @block_alignment[:target_text]
+
 		show = ''
-		@block_alignments.each do |a|
+		@block_alignment[:blocks].each do |a|
 			show += case a[:alignment]
 			when :block
 				"===== common =====\n" +
-				@ostr1[a[:source][:begin] ... a[:source][:end]] + "\n\n"
+				stext[a[:source][:begin] ... a[:source][:end]] + "\n\n"
 			when :empty
 				"<<<<< string 1\n" +
-				@ostr1[a[:source][:begin] ... a[:source][:end]] + "\n\n" +
+				stext[a[:source][:begin] ... a[:source][:end]] + "\n\n" +
 				">>>>> string 2\n" +
-				@ostr2[a[:target][:begin] ... a[:target][:end]] + "\n\n"
+				ttext[a[:target][:begin] ... a[:target][:end]] + "\n\n"
 			else
 				astr1 = ''
 				astr2 = ''
@@ -325,13 +262,13 @@ class TextAlignment::TextAlignment
 				astr1 = a[:alignment].sdiff.map do |c|
 					case c.action
 					when '='
-						@ostr1[c.old_position + base]
+						stext[c.old_position + base]
 					when '+'
 						'_'
 					when '-'
-						@ostr1[c.old_position + base]
+						stext[c.old_position + base]
 					when '!'
-						@ostr1[c.old_position + base] + '_'
+						stext[c.old_position + base] + '_'
 					end
 				end.join('')
 
@@ -339,13 +276,13 @@ class TextAlignment::TextAlignment
 				astr2 = a[:alignment].sdiff.map do |c|
 					case c.action
 					when '='
-						@ostr2[c.new_position + base]
+						ttext[c.new_position + base]
 					when '+'
-						@ostr2[c.new_position + base]
+						ttext[c.new_position + base]
 					when '-'
 						'_'
 					when '!'
-						'_' + @ostr2[c.new_position + base]
+						'_' + ttext[c.new_position + base]
 					end
 				end.join('')
 

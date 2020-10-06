@@ -91,8 +91,9 @@ class TextAlignment::TextAlignment
 						_str1 = str1[b1 ... e1]
 						_str2 = str2[b2 ... e2]
 						alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, mappings)
-						if alignment.similarity < 0.6
-							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment: :empty}
+						similarity = alignment_similarity(_str1, _str2, alignment)
+						if similarity < 0.6
+							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment: :empty, similarity: similarity}
 						else
 							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:0, end:e2}, alignment:alignment}
 						end
@@ -114,8 +115,9 @@ class TextAlignment::TextAlignment
 					@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
 				else
 					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, mappings)
-					if alignment.similarity < 0.6
-						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
+					similarity = alignment_similarity(_str1, _str2, alignment)
+					if similarity < 0.6
+						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty, similarity: similarity}
 					else
 						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment}
 					end
@@ -143,8 +145,9 @@ class TextAlignment::TextAlignment
 					_str2 = str2[b2 ... e2]
 
 					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase, mappings)
-					if alignment.similarity < 0.6
-						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
+					similarity = alignment_similarity(_str1, _str2, alignment)
+					if similarity < 0.6
+						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty, similarity: similarity}
 					else
 						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment}
 					end
@@ -250,6 +253,7 @@ class TextAlignment::TextAlignment
 				"===== common =====\n" +
 				stext[a[:source][:begin] ... a[:source][:end]] + "\n\n"
 			when :empty
+				"xxxxx disparate texts (similarity: #{a[:similarity]})\n" +
 				"<<<<< string 1\n" +
 				stext[a[:source][:begin] ... a[:source][:end]] + "\n\n" +
 				">>>>> string 2\n" +
@@ -316,15 +320,15 @@ class TextAlignment::TextAlignment
 		pletters = TextAlignment::PADDING_LETTERS
 
 		# find the padding letter for str1
-		padding_letter1 = begin
+		@padding_letter1 = begin
 			i = pletters.index{|l| str2.index(l).nil?}
 			raise RuntimeError, "Could not find a padding letter for str1" if i.nil?
 			TextAlignment::PADDING_LETTERS[i]
 		end
 
 		# find the padding letter for str2
-		padding_letter2 = begin
-			i = pletters.index{|l| l != padding_letter1 && str1.index(l).nil?}
+		@padding_letter2 = begin
+			i = pletters.index{|l| l != @padding_letter1 && str1.index(l).nil?}
 			raise RuntimeError, "Could not find a padding letter for str2" if i.nil?
 			TextAlignment::PADDING_LETTERS[i]
 		end
@@ -335,18 +339,27 @@ class TextAlignment::TextAlignment
 			from = f[1]
 
 			if str2.index(f[0])
-				to   = f[0] + (padding_letter1 * (f[1].length - 1))
+				to   = f[0] + (@padding_letter1 * (f[1].length - 1))
 				str1.gsub!(from, to)
 			end
 
 			if str1.index(f[0])
-				to   = f[0] + (padding_letter2 * (f[1].length - 1))
+				to   = f[0] + (@padding_letter2 * (f[1].length - 1))
 				str2.gsub!(from, to)
 			end
 		end
 		mappings.delete_if{|m| m[0].length == 1 && m[1].length > 1}
 
 		[str1, str2, mappings]
+	end
+
+	def alignment_similarity(_s1, _s2, alignment)
+		# compute the lcs only with non-whitespace letters
+		lcs = alignment.sdiff.count{|d| d.action == '=' && d.old_element =~ /\S/ && d.new_element =~ /\S/}
+
+		s1 = _s1.tr(@padding_letter1, ' ')
+		s2 = _s2.tr(@padding_letter2, ' ')
+		similarity  = 2 * lcs / (s1.scan(/\S/).count + s2.scan(/\S/).count).to_f
 	end
 
 end

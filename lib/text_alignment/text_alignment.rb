@@ -16,6 +16,8 @@ class TextAlignment::TextAlignment
 		raise ArgumentError, "nil string" if str1.nil? || str2.nil?
 
 		@block_alignment = {source_text:str1, target_text:str2}
+		@str1 = str1
+		@str2 = str2
 
 		# try exact match
 		block_begin = str2.index(str1)
@@ -167,7 +169,6 @@ class TextAlignment::TextAlignment
 			if begin_position == block[:source][:begin]
 				block[:target][:begin]
 			else
-				# raise "lost annotation"
 				nil
 			end
 		else
@@ -186,7 +187,6 @@ class TextAlignment::TextAlignment
 			if end_position == block[:source][:end]
 				block[:target][:end]
 			else
-				# raise "lost annotation"
 				nil
 			end
 		else
@@ -208,14 +208,14 @@ class TextAlignment::TextAlignment
 		@lost_annotations = []
 
 		denotations.each do |d|
-			begin
-				d.begin = transform_begin_position(d.begin);
-				d.end = transform_end_position(d.end);
-			rescue
-				@lost_annotations << d
-				d.begin = nil
-				d.end = nil
-			end
+			source = {begin:d.begin, end:d.end}
+			d.begin = transform_begin_position(d.begin);
+			d.end = transform_end_position(d.end);
+			raise "invalid transform" unless !d.begin.nil? && !d.end.nil? && d.begin >= 0 && d.end > d.begin && d.end <= @str2.length
+		rescue
+			@lost_annotations << {source: source, target:{begin:d.begin, end:d.end}}
+			d.begin = nil
+			d.end = nil
 		end
 
 		@lost_annotations
@@ -226,12 +226,12 @@ class TextAlignment::TextAlignment
 		@lost_annotations = []
 
 		r = hdenotations.collect do |d|
-			new_d = begin
-				d.dup.merge({span:transform_a_span(d[:span])})
-			rescue
-				@lost_annotations << d
-				nil
-			end
+			t = transform_a_span(d[:span])
+			raise "invalid transform" unless !t[:begin].nil? && !t[:end].nil? && t[:begin] >= 0 && t[:end] > t[:begin] && t[:end] <= @str2.length
+			new_d = d.dup.merge({span:t})
+		rescue
+			@lost_annotations << {source: d[:span], target:t}
+			nil
 		end.compact
 
 		r

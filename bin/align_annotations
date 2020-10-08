@@ -142,14 +142,6 @@ else
 	puts "====="
 	# exit
 
-	# verification of source denotations
-	puts "[Invalid source denotations]"
-	source_annotations[:denotations] do |d|
-		p d unless d[:span][:begin] && d[:span][:end] && d[:span][:begin] < d[:span][:end] && d[:span][:begin] >= 0 && d[:span][:end] < source_text.length
-	end
-	puts "====="
-	puts
-
 	denotations = alignment.transform_hdenotations(source_annotations[:denotations])
 	puts "[Invalid transformation]"
 	denotations.each do |d|
@@ -194,7 +186,9 @@ warn "denotations:\t#{target_annotations[:denotations].nil? ? 0 : target_annotat
 
 if lost_annotations
 	warn "\n[lost annotations]"
-	warn "#{lost_annotations.length}"
+	lost_annotations.each do |a|
+		p a
+	end
 end
 
 #puts target_annotations.to_json

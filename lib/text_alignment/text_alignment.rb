@@ -120,6 +120,8 @@ class TextAlignment::TextAlignment
 				else
 					[{source:{begin:last_block[:source][:end], end:str1.length}, alignment: :empty}]
 				end
+			else
+				[]
 			end
 		end
 

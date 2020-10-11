@@ -105,9 +105,7 @@ lost_annotations = []
 target_annotations = if source_annotations.class == Array
 	align_mdoc(source_annotations, {text: target_text})
 else
-	alignment = TextAlignment::TextAlignment.new(source_annotations[:text], target_text)
-
-	# pp alignment
+	alignment = TextAlignment::TextAlignment.new(source_annotations[:text], target_text, source_annotations[:denotations])
 
 	# verification
 	# source_text = source_annotations[:text]
@@ -143,13 +141,6 @@ else
 	# exit
 
 	denotations = alignment.transform_hdenotations(source_annotations[:denotations])
-	puts "[Invalid transformation]"
-	denotations.each do |d|
-		p d unless d[:span][:begin] && d[:span][:end] && d[:span][:begin] < d[:span][:end] && d[:span][:begin] >= 0 && d[:span][:end] < target_text.length
-	end
-	puts "====="
-	puts
-
 	lost_annotations += alignment.lost_annotations if alignment.lost_annotations
 
 	source_annotations.merge({text:target_text, denotations:denotations})

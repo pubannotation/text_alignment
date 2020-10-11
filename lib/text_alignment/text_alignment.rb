@@ -12,45 +12,46 @@ class TextAlignment::TextAlignment
 	attr_reader :similarity
 	attr_reader :lost_annotations
 
-	def initialize(str1, str2, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
+	def initialize(str1, str2, denotations = nil, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
 		raise ArgumentError, "nil string" if str1.nil? || str2.nil?
 
 		@block_alignment = {source_text:str1, target_text:str2}
 		@str1 = str1
 		@str2 = str2
 
-		# try exact match
+		## Block exact match
 		block_begin = str2.index(str1)
 		unless block_begin.nil?
 			@block_alignment[:blocks] = [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
-			return @block_alignment
+			return
 		end
 
-		# try exact match
 		block_begin = str2.downcase.index(str1.downcase)
 		unless block_begin.nil?
 			@block_alignment[:blocks] = [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
-			return @block_alignment
+			return
 		end
 
+
+		## to find block alignments
 		anchor_finder = TextAlignment::AnchorFinder.new(str1, str2, _size_ngram, _size_window, _text_similiarity_threshold)
 
-		# To collect matched blocks
-		mblocks = []
-		while anchor = anchor_finder.get_next_anchor
-			last = mblocks.last
-			if last && (anchor[:source][:begin] == last[:source][:end] + 1) && (anchor[:target][:begin] == last[:target][:end] + 1)
-				last[:source][:end] = anchor[:source][:end]
-				last[:target][:end] = anchor[:target][:end]
+		blocks = []
+		while block = anchor_finder.get_next_anchor
+			last = blocks.last
+			if last && (block[:source][:begin] == last[:source][:end] + 1) && (block[:target][:begin] == last[:target][:end] + 1)
+				last[:source][:end] = block[:source][:end]
+				last[:target][:end] = block[:target][:end]
 			else
-				mblocks << anchor
+				blocks << block.merge(alignment: :block, delta: block[:target][:begin] - block[:source][:begin])
 			end
 		end
 
-		# pp mblocks
+		# pp blocks
 		# puts "-----"
 		# puts
-		# mblocks.each do |b|
+		# exit
+		# blocks.each do |b|
 		# 	p [b[:source], b[:target]]
 		# 	puts "---"
 		# 	puts str1[b[:source][:begin] ... b[:source][:end]]
@@ -62,108 +63,191 @@ class TextAlignment::TextAlignment
 		# puts "-=-=-=-=-"
 		# puts
 
-		## To find block alignments
-		@block_alignment[:blocks] = []
-		return if mblocks.empty?
+		## to fill the gaps
+		last_block = nil
+		blocks2 = blocks.inject([]) do |sum, block|
+			b1 = last_block ? last_block[:source][:end] : 0
+			e1 = block[:source][:begin]
 
-		# Initial step
-		if mblocks[0][:source][:begin] > 0
-			e1 = mblocks[0][:source][:begin]
-			e2 = mblocks[0][:target][:begin]
-
-			if mblocks[0][:target][:begin] == 0
-				@block_alignment[:blocks] << {source:{begin:0, end:e1}, target:{begin:0, end:0}, alignment: :empty}
+			sum += if b1 == e1
+				[block]
 			else
-				_str1 = str1[0 ... e1]
-				_str2 = str2[0 ... e2]
+				b2 = last_block ? last_block[:target][:end] : 0
+				e2 = block[:target][:begin]
 
-				unless _str1.strip.empty?
-					if _str2.strip.empty?
-						@block_alignment[:blocks] << {source:{begin:0, end:e1}, target:{begin:0, end:e2}, alignment: :empty}
-					else
-						len_min = [_str1.length, _str2.length].min
-						len_buffer = (len_min * (1 + TextAlignment::BUFFER_RATE)).to_i + TextAlignment::BUFFER_MIN
-						b1 = _str1.length < len_buffer ? 0 : e1 - len_buffer
-						b2 = _str2.length < len_buffer ? 0 : e2 - len_buffer
-
-						@block_alignment[:blocks] << {source:{begin:0, end:b1}, target:{begin:0, end:b2}, alignment: :empty} if b1 > 0
-
-						_str1 = str1[b1 ... e1]
-						_str2 = str2[b2 ... e2]
-						alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase)
-						if alignment.similarity < 0.5
-							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty, similarity: alignment.similarity}
-						else
-							@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment, similarity: alignment.similarity}
-						end
-					end
-				end
-			end
-		end
-		@block_alignment[:blocks] << mblocks[0].merge(alignment: :block)
-
-		(1 ... mblocks.length).each do |i|
-			b1 = mblocks[i - 1][:source][:end]
-			b2 = mblocks[i - 1][:target][:end]
-			e1 = mblocks[i][:source][:begin]
-			e2 = mblocks[i][:target][:begin]
-			_str1 = str1[b1 ... e1]
-			_str2 = str2[b2 ... e2]
-			unless _str1.strip.empty?
-				if _str2.strip.empty?
-					@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}
+				if b2 == e2
+					[
+						{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty},
+						block
+					]
 				else
-					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase)
-					if alignment.similarity < 0.5
-						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty, similarity: alignment.similarity}
-					else
-						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment, similarity: alignment.similarity}
+					if b1 == 0 && b2 == 0
+						len_buffer = (e1 * (1 + TextAlignment::BUFFER_RATE)).to_i + TextAlignment::BUFFER_MIN
+						b2 = e2 - len_buffer if e2 > len_buffer
 					end
-				end
-			end
-			@block_alignment[:blocks] << mblocks[i].merge(alignment: :block)
-		end
 
-		# Final step
-		if  mblocks[-1][:source][:end] < str1.length && mblocks[-1][:target][:end] < str2.length
-			b1 = mblocks[-1][:source][:end]
-			b2 = mblocks[-1][:target][:end]
-			_str1 = str1[b1 ... str1.length]
-			_str2 = str2[b2 ... str2.length]
-
-			unless _str1.strip.empty?
-				if _str2.strip.empty?
-					@block_alignment[:blocks] << {source:{begin:b1, end:str1.length}, target:{begin:b2, end:str2.length}, alignment: :empty}
-				else
-					len_min = [_str1.length, _str2.length].min
-					len_buffer = (len_min * (1 + TextAlignment::BUFFER_RATE)).to_i + TextAlignment::BUFFER_MIN
-					e1 = _str1.length < len_buffer ? str1.length : b1 + len_buffer
-					e2 = _str2.length < len_buffer ? str2.length : b2 + len_buffer
 					_str1 = str1[b1 ... e1]
 					_str2 = str2[b2 ... e2]
 
-					alignment = TextAlignment::MixedAlignment.new(_str1.downcase, _str2.downcase)
-					if alignment.similarity < 0.5
-						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty, similarity: alignment.similarity}
+					if _str1.strip.empty? || _str2.strip.empty?
+						[
+							{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty},
+							block
+						]
 					else
-						@block_alignment[:blocks] << {source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment, similarity: alignment.similarity}
+						local_alignment_blocks(str1, b1, e1, str2, b2, e2, denotations) << block
 					end
+				end
+			end
 
-					@block_alignment[:blocks] << {source:{begin:e1, end:-1}, target:{begin:e2, end:-1}, alignment: :empty} if e1 < str1.length
+			last_block = block
+			sum
+		end
+
+		# the last step
+		blocks2 += if last_block.nil?
+			local_alignment_blocks(str1, 0, str1.length, str2, 0, str2.length, denotations)
+		else
+			b1 = last_block[:source][:end]
+			if b1 < str1.length
+				e1 = str1.length
+
+				b2 = last_block[:target][:end]
+				if b2 < str2.length
+					len_buffer = ((e1 - b1) * (1 + TextAlignment::BUFFER_RATE)).to_i + TextAlignment::BUFFER_MIN
+					e2 = (str2.length - b2) > len_buffer ? b2 + len_buffer : str2.length
+					local_alignment_blocks(str1, b1, e1, str2, b2, e2, denotations)
+				else
+					[{source:{begin:last_block[:source][:end], end:str1.length}, alignment: :empty}]
 				end
 			end
 		end
 
-		@block_alignment[:blocks].each do |a|
-			a[:delta] = a[:target][:begin] - a[:source][:begin]
+		@block_alignment[:blocks] = blocks2
+	end
+
+	def local_alignment_blocks(str1, b1, e1, str2, b2, e2, denotations = nil)
+		block2 = str2[b2 ... e2]
+
+		## term-based alignment
+		tblocks = if denotations
+			ds_in_scope = denotations.select{|d| d[:span][:begin] >= b1 && d[:span][:end] <= e1}.
+							sort{|d1, d2| d1[:span][:begin] <=> d2[:span][:begin] || d2[:span][:end] <=> d1[:span][:end] }.
+							map{|d| d.merge(lex:str1[d[:span][:begin] ... d[:span][:end]])}
+
+			position = 0
+			tblocks = ds_in_scope.map do |term|
+				lex = term[:lex]
+				r = block2.index(lex, position)
+				if r.nil?
+					position = nil
+					break
+				end
+				position = r + lex.length
+				{source:term[:span], target:{begin:r + b2, end:r + b2 + lex.length}, alignment: :term, delta: r - term[:span][:begin]}
+			end
+
+			# missing term found
+			tblocks = [] if position.nil?
+
+			# redundant matching found
+			unless position.nil?
+				ds_in_scope.each do |term|
+					lex = term[:lex]
+					look_forward = block2.index(lex, position)
+					unless look_forward.nil?
+						puts lex
+						tblocks = []
+						break
+					end
+				end
+			end
+
+			tblocks
 		end
+
+		if tblocks.empty?
+			if b1 == 0 && e1 == str1.length
+				if str2.length > 2000
+					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
+				else
+					block1 = str1[b1 ... e1]
+					block2 = str2[b2 ... e2]
+
+					## character-based alignment
+					alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
+					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment, similarity: alignment.similarity}]
+					# alignment = :alignment
+					# [{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :alignment}]
+				end
+			else
+				block1 = str1[b1 ... e1]
+				block2 = str2[b2 ... e2]
+
+				## character-based alignment
+				alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
+				[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment, similarity: alignment.similarity}]
+				# alignmnet = :alignment
+				# [{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :alignment}]
+			end
+		else
+			last_tblock = nil
+			lblocks = tblocks.inject([]) do |sum, tblock|
+				tb1 = last_tblock ? last_tblock[:source][:end] : b1
+				te1 = tblock[:source][:begin]
+
+				sum += if te1 == tb1
+					[tblock]
+				else
+					tb2 = last_tblock ? tlast_block[:target][:end] : b2
+					te2 = tblock[:target][:begin]
+
+					if b2 == e2
+						[
+							{source:{begin:tb1, end:te1}, alignment: :empty},
+							tblock
+						]
+					else
+						[
+							{source:{begin:tb1, end:te1}, target:{begin:tb2, end:te2}, alignment: :empty},
+							tblock
+						]
+					end
+				end
+
+				last_tblock = tblock
+				sum
+			end
+
+			if last_tblock[:source][:end] < e1
+				if last_tblock[:target][:end] < e2
+					lblocks << {source:{begin:last_tblock[:source][:end], end:e1}, target:{begin:last_tblock[:target][:end], end:e2}, alignment: :empty}
+				else
+					lblocks << {source:{begin:last_tblock[:source][:end], end:e1}, alignment: :empty}
+				end
+			end
+
+			lblocks
+		end
+	end
+
+
+	def indices(str, target)
+	  position = 0
+	  len = target.len
+	  Enumerator.new do |yielder|
+	    while idx = str.index(target, position)
+	      yielder << idx
+	      position = idx + len
+	    end
+	  end
 	end
 
 	def transform_begin_position(begin_position)
 		i = @block_alignment[:blocks].index{|b| b[:source][:end] > begin_position}
 		block = @block_alignment[:blocks][i]
 
-		b = if block[:alignment] == :block
+		b = if block[:alignment] == :block || block[:alignment] == :term
 			begin_position + block[:delta]
 		elsif block[:alignment] == :empty
 			if begin_position == block[:source][:begin]
@@ -181,7 +265,7 @@ class TextAlignment::TextAlignment
 		i = @block_alignment[:blocks].index{|b| b[:source][:end] >= end_position}
 		block = @block_alignment[:blocks][i]
 
-		e = if block[:alignment] == :block
+		e = if block[:alignment] == :block || block[:alignment] == :term
 			end_position + block[:delta]
 		elsif block[:alignment] == :empty
 			if end_position == block[:source][:end]
@@ -245,7 +329,10 @@ class TextAlignment::TextAlignment
 		@block_alignment[:blocks].each do |a|
 			show += case a[:alignment]
 			when :block
-				"===== common ===== [#{a[:source][:begin]} - #{a[:source][:end]}] [#{a[:target][:begin]} - #{a[:target][:end]}]\n" +
+				"===== common (block) ===== [#{a[:source][:begin]} - #{a[:source][:end]}] [#{a[:target][:begin]} - #{a[:target][:end]}]\n" +
+				stext[a[:source][:begin] ... a[:source][:end]] + "\n\n"
+			when :term
+				"===== common (term) ===== [#{a[:source][:begin]} - #{a[:source][:end]}] [#{a[:target][:begin]} - #{a[:target][:end]}]\n" +
 				stext[a[:source][:begin] ... a[:source][:end]] + "\n\n"
 			when :empty
 				"xxxxx disparate texts (similarity: #{a[:similarity]})\n" +

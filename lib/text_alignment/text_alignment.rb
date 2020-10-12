@@ -170,17 +170,15 @@ class TextAlignment::TextAlignment
 
 		if tblocks.empty?
 			if b1 == 0 && e1 == str1.length
-				if str2.length > 2000
+				block1 = str1[b1 ... e1]
+				block2 = str2[b2 ... e2]
+
+				## character-based alignment
+				alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
+				if alignment.sdiff.nil?
 					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
 				else
-					block1 = str1[b1 ... e1]
-					block2 = str2[b2 ... e2]
-
-					## character-based alignment
-					alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
-					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment, similarity: alignment.similarity}]
-					# alignment = :alignment
-					# [{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :alignment}]
+					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: alignment, similarity: alignment.similarity}]
 				end
 			else
 				block1 = str1[b1 ... e1]
@@ -188,9 +186,11 @@ class TextAlignment::TextAlignment
 
 				## character-based alignment
 				alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
-				[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment:alignment, similarity: alignment.similarity}]
-				# alignmnet = :alignment
-				# [{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :alignment}]
+				if alignment.sdiff.nil?
+					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
+				else
+					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: alignment, similarity: alignment.similarity}]
+				end
 			end
 		else
 			last_tblock = nil
@@ -201,7 +201,7 @@ class TextAlignment::TextAlignment
 				sum += if te1 == tb1
 					[tblock]
 				else
-					tb2 = last_tblock ? tlast_block[:target][:end] : b2
+					tb2 = last_tblock ? last_tblock[:target][:end] : b2
 					te2 = tblock[:target][:begin]
 
 					if b2 == e2

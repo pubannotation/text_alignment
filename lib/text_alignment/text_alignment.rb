@@ -170,15 +170,19 @@ class TextAlignment::TextAlignment
 
 		if tblocks.empty?
 			if b1 == 0 && e1 == str1.length
-				block1 = str1[b1 ... e1]
-				block2 = str2[b2 ... e2]
-
-				## character-based alignment
-				alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
-				if alignment.sdiff.nil?
+				if (e1 > 1000) || (e2 > 1000)
 					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
 				else
-					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: alignment, similarity: alignment.similarity}]
+					block1 = str1[b1 ... e1]
+					block2 = str2[b2 ... e2]
+
+					## character-based alignment
+					alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
+					if alignment.sdiff.nil?
+						[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
+					else
+						[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: alignment, similarity: alignment.similarity}]
+					end
 				end
 			else
 				block1 = str1[b1 ... e1]

@@ -63,6 +63,7 @@ TextAlignment::MAPPINGS = [
 	[" ", " "],       #U+200A (hair space)
 	[" ", " "],       #U+00A0 (no-break space)
 	["　", " "],       #U+3000 (ideographic space)
+	["‑", "-"],       #U+2211 (Non-Breaking Hyphen)
 	["−", "-"],       #U+2212 (minus sign)
 	["–", "-"],       #U+2013 (en dash)
 	["′", "'"],       #U+2032 (prime)

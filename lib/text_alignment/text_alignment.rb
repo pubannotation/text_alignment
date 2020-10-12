@@ -170,7 +170,7 @@ class TextAlignment::TextAlignment
 
 		if tblocks.empty?
 			if b1 == 0 && e1 == str1.length
-				if (e1 > 1000) || (e2 > 1000)
+				if (e1 > 2000) || (e2 > 2000)
 					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
 				else
 					block1 = str1[b1 ... e1]

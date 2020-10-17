@@ -5,33 +5,24 @@ require 'text_alignment/mixed_alignment'
 
 module TextAlignment; end unless defined? TextAlignment
 
-TextAlignment::PADDING_LETTERS = ['@', '^', '|', '#', '$', '%', '&', '_'] unless defined? TextAlignment::PADDING_LETTERS
-
 class TextAlignment::TextAlignment
 	attr_reader :block_alignment
 	attr_reader :similarity
 	attr_reader :lost_annotations
 
-	def initialize(str1, str2, denotations = nil, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
-		raise ArgumentError, "nil string" if str1.nil? || str2.nil?
+	def initialize(_str1, _str2, denotations = nil, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
+		raise ArgumentError, "nil string" if _str1.nil? || _str2.nil?
 
-		@block_alignment = {source_text:str1, target_text:str2}
-		@str1 = str1
-		@str2 = str2
+		@block_alignment = {source_text:_str1, target_text:_str2}
+		@original_str1 = _str1
+		@original_str2 = _str2
 
-		## Block exact match
-		block_begin = str2.index(str1)
-		unless block_begin.nil?
-			@block_alignment[:blocks] = [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
+		str1, str2, @mappings = TextAlignment::single_character_mapping_preprocessing(_str1, _str2)
+
+		if r = whole_block_alignment(str1, str2)
+			@block_alignment[:blocks] = r
 			return
 		end
-
-		block_begin = str2.downcase.index(str1.downcase)
-		unless block_begin.nil?
-			@block_alignment[:blocks] = [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
-			return
-		end
-
 
 		## to find block alignments
 		anchor_finder = TextAlignment::AnchorFinder.new(str1, str2, _size_ngram, _size_window, _text_similiarity_threshold)
@@ -128,6 +119,21 @@ class TextAlignment::TextAlignment
 		@block_alignment[:blocks] = blocks2
 	end
 
+	def whole_block_alignment(str1, str2)
+		## Block exact match
+		block_begin = str2.index(str1)
+		unless block_begin.nil?
+			return [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
+		end
+
+		block_begin = str2.downcase.index(str1.downcase)
+		unless block_begin.nil?
+			return [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
+		end
+
+		nil
+	end
+
 	def local_alignment_blocks(str1, b1, e1, str2, b2, e2, denotations = nil)
 		block2 = str2[b2 ... e2]
 
@@ -166,6 +172,8 @@ class TextAlignment::TextAlignment
 			end
 
 			tblocks
+		else
+			[]
 		end
 
 		if tblocks.empty?
@@ -177,7 +185,7 @@ class TextAlignment::TextAlignment
 					block2 = str2[b2 ... e2]
 
 					## character-based alignment
-					alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
+					alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase, @mappings)
 					if alignment.sdiff.nil?
 						[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
 					else
@@ -189,7 +197,7 @@ class TextAlignment::TextAlignment
 				block2 = str2[b2 ... e2]
 
 				## character-based alignment
-				alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
+				alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase, @mappings)
 				if alignment.sdiff.nil?
 					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
 				else
@@ -301,7 +309,7 @@ class TextAlignment::TextAlignment
 			source = {begin:d.begin, end:d.end}
 			d.begin = transform_begin_position(d.begin);
 			d.end = transform_end_position(d.end);
-			raise "invalid transform" unless !d.begin.nil? && !d.end.nil? && d.begin >= 0 && d.end > d.begin && d.end <= @str2.length
+			raise "invalid transform" unless !d.begin.nil? && !d.end.nil? && d.begin >= 0 && d.end > d.begin && d.end <= @original_str2.length
 		rescue
 			@lost_annotations << {source: source, target:{begin:d.begin, end:d.end}}
 			d.begin = nil
@@ -317,7 +325,7 @@ class TextAlignment::TextAlignment
 
 		r = hdenotations.collect do |d|
 			t = transform_a_span(d[:span])
-			raise "invalid transform" unless !t[:begin].nil? && !t[:end].nil? && t[:begin] >= 0 && t[:end] > t[:begin] && t[:end] <= @str2.length
+			raise "invalid transform" unless !t[:begin].nil? && !t[:end].nil? && t[:begin] >= 0 && t[:end] > t[:begin] && t[:end] <= @original_str2.length
 			new_d = d.dup.merge({span:t})
 		rescue
 			@lost_annotations << {source: d[:span], target:t}
@@ -344,8 +352,13 @@ class TextAlignment::TextAlignment
 				"xxxxx disparate texts (similarity: #{a[:similarity]})\n" +
 				"<<<<< string 1 [#{a[:source][:begin]} - #{a[:source][:end]}]\n" +
 				stext[a[:source][:begin] ... a[:source][:end]] + "\n\n" +
-				">>>>> string 2 [#{a[:target][:begin]} - #{a[:target][:end]}]\n" +
-				ttext[a[:target][:begin] ... a[:target][:end]] + "\n\n"
+				">>>>> string 2 " +
+				if a[:target]
+					"[#{a[:target][:begin]} - #{a[:target][:end]}]\n" +
+					ttext[a[:target][:begin] ... a[:target][:end]] + "\n\n"
+				else
+					"[-]\n\n"
+				end
 			else
 				astr1 = ''
 				astr2 = ''
@@ -385,5 +398,4 @@ class TextAlignment::TextAlignment
 		end
 		show
 	end
-
 end

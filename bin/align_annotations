@@ -26,33 +26,43 @@ def read_text(filename)
 	end
 end
 
-def align_mdoc(source_annotations, target_annotations)
+def align_denotations(denotations, source_text, target_text, debug = false)
+	alignment = TextAlignment::TextAlignment.new(source_text, target_text, denotations)
+	new_denotations = alignment.transform_hdenotations(denotations)
+
+	if debug
+		warn "[block alignment]"
+		warn alignment.alignment_show
+		warn "-----"
+
+		lost_annotations = alignment.lost_annotations
+		unless lost_annotations.empty?
+			warn "\n[lost annotations] #{lost_annotations.length}"
+			lost_annotations.each do |a|
+				warn "#{a}"
+			end
+			warn "====="
+		end
+		warn
+	end
+
+	# return target annotations
+	new_denotations
+end
+
+def align_mannotations(source_annotations, target_text, debug = false)
+	target_annotations = {text:target_text}
+
 	idnum_denotations = 0
 	idnum_relations = 0
 	idnum_attributes = 0
 	idnum_modifications = 0
 
-	source_annotations.each do |annotations|
-		alignment = TextAlignment::TextAlignment.new(annotations[:text], target_annotations[:text])
-
-		puts alignment.alignment_show
-		puts "-----"
-		puts
-
-		# alignment.block_alignments.each do |a|
-			# p {source:a[:source], target:a[:target]}
-			# puts "--"
-			# p a[:alignment] if a[:alignment].nil? || a[:alignment] == :empty
-			# puts "--"
-			# puts annotations[:text][a[:source][:begin] ... a[:source][:end]]
-			# puts "--"
-			# puts target_text[a[:target][:begin] ... a[:target][:end]]
-			# puts "======"
-		# end
-
+	source_annotations.each_with_index do |annotations, i|
 		if annotations.has_key?(:denotations) && !annotations[:denotations].empty?
 			ididx = {}
-			denotations = alignment.transform_hdenotations(annotations[:denotations])
+			warn "[#{i}]-=-=-=-=-"
+			denotations = align_denotations(annotations[:denotations], annotations[:text], target_text, debug)
 			denotations.each do |d|
 				reid = 'T' + (idnum_denotations += 1).to_s
 				ididx[d[:id]] = reid
@@ -101,126 +111,11 @@ end
 source_annotations = read_annotations(ARGV[0])
 target_text = read_text(ARGV[1])
 
-lost_annotations = []
 target_annotations = if source_annotations.class == Array
-	align_mdoc(source_annotations, {text: target_text})
+	align_mannotations(source_annotations, target_text, true)
 else
-	alignment = TextAlignment::TextAlignment.new(source_annotations[:text], target_text, source_annotations[:denotations])
-
-	# verification
-	# source_text = source_annotations[:text]
-	# puts "=====BEGIN"
-	# (0 ... source_text.rstrip.length).each do |p|
-	# 	t = alignment.transform_begin_position(p)
-	# 	if t.nil?
-	# 		print source_text[p]
-	# 	else
-	# 		print '.'
-	# 	end
-	# end
-	# puts
-	# puts "=====END"
-
-	# puts "=====BEGIN"
-	# (0 .. source_text.rstrip.length).each do |p|
-	# 	t = alignment.transform_end_position(p)
-	# 	if t.nil?
-	# 		print source_text[p]
-	# 	else
-	# 		print '.'
-	# 	end
-	# end
-	# puts
-	# puts "=====END"
-
-	source_text = source_annotations[:text]
-
-	puts "[block alignment]"
-	puts alignment.alignment_show
-	puts "====="
-	# exit
-
-	denotations = alignment.transform_hdenotations(source_annotations[:denotations])
-	lost_annotations += alignment.lost_annotations if alignment.lost_annotations
-
+	denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], target_text, true)
 	source_annotations.merge({text:target_text, denotations:denotations})
 end
 
-num_denotations_source, num_relations_source, num_attributes_source, num_modifications_source = if source_annotations.class == Array
-	num_denotations_source, num_relations_source, num_attributes_source, num_modifications_source = 0, 0, 0, 0
-	source_annotations.each do |annotations|
-		num_denotations_source += annotations[:denotations].nil? ? 0 : annotations[:denotations].length
-		num_relations_source += annotations[:relations].nil? ? 0 : annotations[:relations].length
-		num_attributes_source += annotations[:attributes].nil? ? 0 : annotations[:attributes].length
-		num_modifications_source += annotations[:modifications].nil? ? 0 : annotations[:modifications].length
-	end
-	[num_denotations_source, num_relations_source, num_attributes_source, num_modifications_source]
-else
-	num_denotations_source = source_annotations[:denotations].nil? ? 0 : source_annotations[:denotations].length
-	num_relations_source = source_annotations[:relations].nil? ? 0 : source_annotations[:relations].length
-	num_attributes_source = source_annotations[:attributes].nil? ? 0 : source_annotations[:attributes].length
-	num_modifications_source = source_annotations[:modifications].nil? ? 0 : source_annotations[:modifications].length
-	[num_denotations_source, num_relations_source, num_attributes_source, num_modifications_source]
-end
-
-warn "[source]"
-warn "denotations:\t#{num_denotations_source}"
-# warn "relations:\t#{num_relations_source}"
-# warn "attributes:\t#{num_attributes_source}"
-# warn "modifications:\t#{num_modifications_source}"
-
-warn "\n[target]"
-warn "denotations:\t#{target_annotations[:denotations].nil? ? 0 : target_annotations[:denotations].length}"
-# warn "relations:\t#{target_annotations[:relations].nil? ? 0 : target_annotations[:relations].length}"
-# warn "attributes:\t#{target_annotations[:attributes].nil? ? 0 : target_annotations[:attributes].length}"
-# warn "modifications:\t#{target_annotations[:modifications].nil? ? 0 : target_annotations[:modifications].length}"
-
-if lost_annotations
-	warn "\n[lost annotations]"
-	lost_annotations.each do |a|
-		p a
-	end
-end
-
-#puts target_annotations.to_json
-
-# denotations = anns1[:denotations]
-
-# puts "[Alignment1]====="
-# align = TextAlignment::TextAlignment.new(str1, str2, TextAlignment::MAPPINGS)
-
-# align.alignment.each do |a|
-# 	p [a[:target][:begin], a[:target][:end], a[:source][:begin], a[:source][:end]]
-# end
-
-# puts TextAlignment::sdiff2cdiff(align.sdiff)
-# puts
-# puts "[Similarity]\n#{align.similarity}"
-# puts
-# puts '[Denotations original]'
-# pp denotations
-# puts
-# puts '[Denotations transformed]'
-# new_denotations = align.transform_hdenotations(denotations)
-# pp new_denotations
-# puts
-# puts "[Alignment2 (downcased)]====="
-# align = TextAlignment::TextAlignment.new(str1.downcase, str2.downcase, TextAlignment::MAPPINGS)
-# puts TextAlignment::sdiff2cdiff(align.sdiff)
-# puts
-# puts "[Similarity]\n#{align.similarity}"
-# puts
-# puts '[Denotations original]'
-# pp denotations
-# puts
-# puts '[Denotations transformed]'
-# new_denotations = align.transform_hdenotations(denotations)
-# pp new_denotations
-# puts
-# puts '[Annotations transformed]'
-# anns2[:denotations] = new_denotations
-# puts anns2.to_json
-
-# p align.common_elements
-# puts "---------------"
-# p align.mapped_elements
+# puts target_annotations.to_json

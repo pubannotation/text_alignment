@@ -17,10 +17,10 @@ class TextAlignment::MixedAlignment
 	attr_reader :similarity
 	attr_reader :str1_match_initial, :str1_match_final, :str2_match_initial, :str2_match_final
 
-	def initialize(_str1, _str2)
+	def initialize(_str1, _str2, _mappings = nil)
 		raise ArgumentError, "nil string" if _str1.nil? || _str2.nil?
 
-		str1, str2, mappings = string_preprocessing(_str1, _str2)
+		str1, str2, mappings = TextAlignment::long_to_one_mapping_preprocessing(_str1, _str2, _mappings)
 
 		_compute_mixed_alignment(str1, str2, mappings)
 	end
@@ -63,7 +63,7 @@ class TextAlignment::MixedAlignment
 		end
 
 		cmp = TextAlignment::LCSComparison.new(str1, str2, lcs, @sdiff)
-		@similarity         = compute_similarity(str1, str2, @sdiff)
+		@similarity         = TextAlignment::compute_similarity(str1, str2, @sdiff)
 		@str1_match_initial = cmp.str1_match_initial
 		@str1_match_final   = cmp.str1_match_final
 		@str2_match_initial = cmp.str2_match_initial
@@ -137,74 +137,6 @@ class TextAlignment::MixedAlignment
 
 		@position_map_begin = posmap_begin.sort.to_h
 		@position_map_end = posmap_end.sort.to_h
-	end
-
-	private
-
-	def string_preprocessing(_str1, _str2)
-		str1 = _str1.dup
-		str2 = _str2.dup
-		mappings = TextAlignment::MAPPINGS.dup
-
-		## single character mappings
-		character_mappings = mappings.select{|m| m[0].length == 1 && m[1].length == 1}
-		characters_from = character_mappings.collect{|m| m[0]}.join
-		characters_to   = character_mappings.collect{|m| m[1]}.join
-		characters_to.gsub!(/-/, '\-')
-
-		str1.tr!(characters_from, characters_to)
-		str2.tr!(characters_from, characters_to)
-
-		mappings.delete_if{|m| m[0].length == 1 && m[1].length == 1}
-
-		## long to one character mappings
-		pletters = TextAlignment::PADDING_LETTERS
-
-		# find the padding letter for str1
-		@padding_letter1 = begin
-			i = pletters.index{|l| str2.index(l).nil?}
-			raise RuntimeError, "Could not find a padding letter for str1" if i.nil?
-			TextAlignment::PADDING_LETTERS[i]
-		end
-
-		# find the padding letter for str2
-		@padding_letter2 = begin
-			i = pletters.index{|l| l != @padding_letter1 && str1.index(l).nil?}
-			raise RuntimeError, "Could not find a padding letter for str2" if i.nil?
-			TextAlignment::PADDING_LETTERS[i]
-		end
-
-		# ASCII foldings
-		ascii_foldings = mappings.select{|m| m[0].length == 1 && m[1].length > 1}
-		ascii_foldings.each do |f|
-			from = f[1]
-
-			if str2.index(f[0])
-				to   = f[0] + (@padding_letter1 * (f[1].length - 1))
-				str1.gsub!(from, to)
-			end
-
-			if str1.index(f[0])
-				to   = f[0] + (@padding_letter2 * (f[1].length - 1))
-				str2.gsub!(from, to)
-			end
-		end
-		mappings.delete_if{|m| m[0].length == 1 && m[1].length > 1}
-
-		[str1, str2, mappings]
-	end
-
-	def compute_similarity(_s1, _s2, sdiff)
-		return 0 if sdiff.nil?
-
-		# compute the lcs only with non-whitespace letters
-		lcs = sdiff.count{|d| d.action == '=' && d.old_element =~ /\S/ && d.new_element =~ /\S/}
-		return 0 if lcs == 0
-
-		s1 = _s1.tr(@padding_letter1, ' ')
-		s2 = _s2.tr(@padding_letter2, ' ')
-
-		similarity = lcs / [s1.scan(/\S/).count, s2.scan(/\S/).count].min.to_f
 	end
 
 end

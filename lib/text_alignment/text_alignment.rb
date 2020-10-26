@@ -164,7 +164,6 @@ class TextAlignment::TextAlignment
 					lex = term[:lex]
 					look_forward = block2.index(lex, position)
 					unless look_forward.nil?
-						puts lex
 						tblocks = []
 						break
 					end

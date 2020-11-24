@@ -13,7 +13,7 @@ class TextAlignment::TextAlignment
 	def initialize(_str1, _str2, denotations = nil, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
 		raise ArgumentError, "nil string" if _str1.nil? || _str2.nil?
 
-		@block_alignment = {source_text:_str1, target_text:_str2}
+		@block_alignment = {source_text: _str1, target_text: _str2, denotations: denotations}
 		@original_str1 = _str1
 		@original_str2 = _str2
 

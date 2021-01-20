@@ -152,7 +152,7 @@ class TextAlignment::TextAlignment
 					break
 				end
 				position = r + lex.length
-				{source:term[:span], target:{begin:r + b2, end:r + b2 + lex.length}, alignment: :term, delta: r - term[:span][:begin]}
+				{source:term[:span], target:{begin:r + b2, end:r + b2 + lex.length}, alignment: :term, delta: r + b2 - term[:span][:begin]}
 			end
 
 			# missing term found

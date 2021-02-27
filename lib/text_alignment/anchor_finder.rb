@@ -7,75 +7,62 @@ module TextAlignment; end unless defined? TextAlignment
 class TextAlignment::AnchorFinder
 
 	def initialize(source_str, target_str, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
-		@size_ngram  = _size_ngram  || TextAlignment::SIZE_NGRAM
-		@size_window = _size_window || TextAlignment::SIZE_WINDOW
-		@sim_threshold = _text_similiarity_threshold || TextAlignment::TEXT_SIMILARITY_THRESHOLD
-
-		@reverse = (target_str.length < source_str.length)
-
-		@s1, @s2 = if @reverse
+		@s1, @s2 = if reverse?(source_str, target_str)
 			[target_str.downcase, source_str.downcase]
 		else
 			[source_str.downcase, target_str.downcase]
 		end
 
-		# current position in s1
-		@beg_s1 = 0
-		@end_s1_prev = 0
-		@end_s2_prev = 0
+		@size_ngram  = _size_ngram  || TextAlignment::SIZE_NGRAM
+		@size_window = _size_window || TextAlignment::SIZE_WINDOW
+		@sim_threshold = _text_similiarity_threshold || TextAlignment::TEXT_SIMILARITY_THRESHOLD
+		@pos_s1_final_possible_begin = @s1.length - @size_ngram - 1
+
+		# positions of last match
+		@pos_s1_last_match = 0
+		@pos_s2_last_match = 0
+	end
+
+	def reverse?(source_str = nil, target_str = nil)
+		unless source_str.nil?
+			@reverse_p = target_str.length < source_str.length
+		end
+		@reverse_p
 	end
 
 	def get_next_anchor
-		# find the position of an anchor ngram in s1 and s2
-		while @beg_s1 < (@s1.length - @size_ngram)
-			if [' ', "\n", "\t"].include? @s1[@beg_s1]
-				@beg_s1 += 1
-				next
-			end
-			anchor = @s1[@beg_s1, @size_ngram]
+		# To find the beginning positions of an anchor ngram in s1 and s2, beginning from the last positions matched
+		beg_s2 = for beg_s1 in @pos_s1_last_match .. @pos_s1_final_possible_begin
 
-			# search_position = 0
-			search_position = @end_s2_prev
-			while @beg_s2 = @s2.index(anchor, search_position)
-				# if both the begining points are sufficiantly close to the end points of the last match
-				break if @beg_s1 > 0 && @beg_s2 > 0 && (@beg_s1 - @end_s1_prev < 5) && (@beg_s2 >= @end_s2_prev) && (@beg_s2 - @end_s2_prev < 5)
+			# To skip whitespace letters
+			next if [' ', "\n", "\t"].include? @s1[beg_s1]
 
-				left_window_s1, left_window_s2 = get_left_windows
-				break if left_window_s1 && (text_similarity(left_window_s1, left_window_s2) > @sim_threshold)
-
-				right_window_s1, right_window_s2 = get_right_windows
-				break if right_window_s2 && (text_similarity(right_window_s1, right_window_s2) > @sim_threshold)
-
-				search_position = @beg_s2 + 1
-			end
-
-			break unless @beg_s2.nil?
-
-			@beg_s1 += 1
+			_beg_s2 = get_beg_s2(beg_s1)
+			break _beg_s2 unless _beg_s2.nil?
 		end
 
-		return nil if @beg_s1 >= (@s1.length - @size_ngram)
+		# To return nil when it fails to find an anchor
+		return nil if beg_s2.class == Range
 
-		# extend the block
-		b1 = @beg_s1
-		b2 = @beg_s2
-		while b1 >= @end_s1_prev && b2 >= @end_s2_prev && @s1[b1] == @s2[b2]
+		# To extend the block to the left
+		b1 = beg_s1
+		b2 = beg_s2
+		while b1 >= @pos_s1_last_match && b2 >= @pos_s2_last_match && @s1[b1] == @s2[b2]
 			b1 -= 1; b2 -= 1
 		end
-
 		b1 += 1; b2 += 1
 
-		e1 = @beg_s1 + @size_ngram
-		e2 = @beg_s2 + @size_ngram
+		# To extend the block to the right
+		e1 = beg_s1 + @size_ngram
+		e2 = beg_s2 + @size_ngram
 		while @s1[e1] && @s1[e1] == @s2[e2]
 			e1 += 1; e2 += 1
 		end
 
-		@end_s1_prev = e1
-		@end_s2_prev = e2
-		@beg_s1 = e1
+		@pos_s1_last_match = e1
+		@pos_s2_last_match = e2
 
-		if @reverse
+		if reverse?
 			{source:{begin:b2 , end:e2}, target:{begin:b1, end:e1}}
 		else
 			{source:{begin:b1 , end:e1}, target:{begin:b2, end:e2}}
@@ -84,14 +71,86 @@ class TextAlignment::AnchorFinder
 
 	private
 
-	def get_left_windows
-		# commend below with the assumption that the beginning of a document gives a significant locational information
-		# return if @beg_s1 < @size_window || @beg_s2 < @size_window
+	def get_beg_s2(beg_s1)
+		# to get the anchor to search for in s2
+		anchor = @s1[beg_s1, @size_ngram]
+
+		# comment out below with the assumption that texts are in the same order
+		# search_position = 0
+		search_position = @pos_s2_last_match
+
+		beg_s2_candidates = find_beg_s2_candidates(anchor, search_position)
+		return nil if beg_s2_candidates.empty?
+
+		beg_s2 = find_valid_beg_s2(beg_s1, beg_s2_candidates)
+	end
+
+	# To find beg_s2 which match to the anchor
+	# return nil if the anchor is too much frequent
+	def find_beg_s2_candidates(anchor, search_position)
+		candidates = []
+		while _beg_s2 = @s2.index(anchor, search_position)
+			candidates << _beg_s2
+
+			# for speed, skip anchor of high frequency
+			if candidates.length > 5
+				candidates.clear
+				break
+			end
+
+			search_position = _beg_s2 + 1
+		end
+		candidates
+	end
+
+	def find_valid_beg_s2(beg_s1, beg_s2_candidates)
+		valid_beg_s2 = nil
+
+		(10 .. 30).step(10).each do |size_window|
+			valid_beg_s2 = nil
+
+			r = beg_s2_candidates.each do |beg_s2|
+				# if both the begining points are sufficiantly close to the end points of the last match
+				# break if beg_s1 > 0 && beg_s2 > 0 && (beg_s1 - @pos_s1_last_match < 5) && (beg_s2 >= @pos_s2_last_match) && (beg_s2 - @pos_s2_last_match < 5)
+				if beg_s1 > 0 && beg_s2 > 0 && (beg_s1 - @pos_s1_last_match < 5) && (beg_s2 - @pos_s2_last_match < 5)
+					break unless valid_beg_s2.nil?
+					valid_beg_s2 = beg_s2
+					next
+				end
+
+				left_window_s1, left_window_s2 = get_left_windows(beg_s1, beg_s2)
+				if left_window_s1 && (text_similarity(left_window_s1, left_window_s2) > @sim_threshold)
+					break unless valid_beg_s2.nil?
+					valid_beg_s2 = beg_s2
+					next
+				end
+
+				right_window_s1, right_window_s2 = get_right_windows(beg_s1, beg_s2)
+				if right_window_s2 && (text_similarity(right_window_s1, right_window_s2) > @sim_threshold)
+					break unless valid_beg_s2.nil?
+					valid_beg_s2 = beg_s2
+					next
+				end
+			end
+
+			# r == nil means that the inner loop was broken (multiple candidates had passed the tests)
+			# r != nil means that the inner loop was completed (with or w/o a valid beg_s2 found)
+			break unless r.nil?
+		end
+
+		valid_beg_s2
+	end
+
+	def get_left_windows(beg_s1, beg_s2, size_window = nil)
+		size_window ||= @size_window
+
+		# comment out below with the assumption that the beginning of a document gives a significant locational information
+		# return if @beg_s1 < size_window || @beg_s2 < size_window
 
 		window_s1 = ''
-		loc = @beg_s1 - 1
+		loc = beg_s1 - 1
 		count = 0
-		while count < @size_window && loc >= 0
+		while count < size_window && loc >= 0
 			if @s1[loc] =~ /[0-9a-zA-Z]/
 				window_s1 += @s1[loc]
 				count += 1
@@ -100,9 +159,9 @@ class TextAlignment::AnchorFinder
 		end
 
 		window_s2 = ''
-		loc = @beg_s2 - 1
+		loc = beg_s2 - 1
 		count = 0
-		while count < @size_window && loc >= 0
+		while count < size_window && loc >= 0
 			if @s2[loc] =~ /[0-9a-zA-Z]/
 				window_s2 += @s2[loc]
 				count += 1
@@ -113,15 +172,17 @@ class TextAlignment::AnchorFinder
 		[window_s1, window_s2]
 	end
 
-	def get_right_windows
+	def get_right_windows(beg_s1, beg_s2, size_window = nil)
+		size_window ||= @size_window
+
 		# commend below with the assumption that the end of a document gives a significant locational
-		# return if (@beg_s1 + @size_ngram > (@s1.length - @size_window)) || (@beg_s2 + @size_ngram > (@s2.length - @size_window))
+		# return if (@beg_s1 + @size_ngram > (@s1.length - size_window)) || (@beg_s2 + @size_ngram > (@s2.length - size_window))
 
 		window_s1 = ''
-		loc = @beg_s1 + @size_ngram
+		loc = beg_s1 + @size_ngram
 		len_s1 = @s1.length
 		count = 0
-		while count < @size_window && loc < len_s1
+		while count < size_window && loc < len_s1
 			if @s1[loc] =~ /[0-9a-zA-Z]/
 				window_s1 += @s1[loc]
 				count += 1
@@ -130,10 +191,10 @@ class TextAlignment::AnchorFinder
 		end
 
 		window_s2 = ''
-		loc = @beg_s2 + @size_ngram
+		loc = beg_s2 + @size_ngram
 		len_s2 = @s2.length
 		count = 0
-		while count < @size_window && loc < len_s2
+		while count < size_window && loc < len_s2
 			if @s2[loc] =~ /[0-9a-zA-Z]/
 				window_s2 += @s2[loc]
 				count += 1
@@ -148,5 +209,4 @@ class TextAlignment::AnchorFinder
 		return 0 if str1.nil? || str2.nil?
 		String::Similarity.cosine(str1, str2, ngram:ngram_order)
 	end
-
 end

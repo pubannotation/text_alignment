@@ -1,6 +1,6 @@
 module TextAlignment; end unless defined? TextAlignment
 
-TextAlignment::MAPPINGS = [
+TextAlignment::CHAR_MAPPING = [
 	["©", "(c)"],			#U+00A9 (Copyright Sign)
 
 	["α", "alpha"],		#U+03B1 (greek small letter alpha)
@@ -75,98 +75,95 @@ TextAlignment::MAPPINGS = [
 ]
 
 
-TextAlignment::PADDING_LETTERS = ['@', '^', '|', '#', '$', '%', '&', '_'] unless defined? TextAlignment::PADDING_LETTERS
+class TextAlignment::CharMapping
+	attr_reader :str
 
+	def initialize(_str, char_mapping = nil)
+		char_mapping ||= TextAlignment::CHAR_MAPPING
+		@str, offset_mapping = enmap_str(_str, char_mapping)
+		@index_enmap = offset_mapping.to_h
+		@index_demap = offset_mapping.map{|m| m.reverse}.to_h
+	end
 
-class << TextAlignment
-	def single_character_mapping_preprocessing(_str1, _str2, _mappings = nil)
-		_mappings ||= TextAlignment::MAPPINGS
+	def enmap_position(position)
+		@index_enmap[position]
+	end
 
-		character_mappings = _mappings.select{|m| m[0].length == 1 && m[1].length == 1}
-		if character_mappings.empty?
-			[_str1, _str2, _mappings]
-		else
-			characters_from = character_mappings.collect{|m| m[0]}.join
-			characters_to   = character_mappings.collect{|m| m[1]}.join
-			characters_to.gsub!(/-/, '\-')
+	def demap_position(position)
+		@index_demap[position]
+	end
 
-			str1 = _str1.tr(characters_from, characters_to)
-			str2 = _str2.tr(characters_from, characters_to)
-
-			mappings = _mappings.select{|m| m[0].length > 1 || m[1].length > 1}
-
-			[str1, str2, mappings]
+	def enmap_denotations(_denotations)
+		denotations = _denotations.map do |d|
+			d.dup.merge(span:{begin:enmap_position(d[:span][:begin]), end:enmap_position(d[:span][:end])})
 		end
 	end
 
-	def long_to_one_mapping_preprocessing(_str1, _str2, _mappings = nil)
-		_mappings ||= TextAlignment::MAPPINGS
+	private
 
-		long_to_one_mappings = _mappings.select{|m| m[0].length == 1 && m[1].length > 1}
-		if long_to_one_mappings.empty?
-			[_str1, _str2, _mappings]
-		else
-			## long to one character mappings
-			pletters = TextAlignment::PADDING_LETTERS
+	def enmap_str(_str, char_mapping)
+		str = _str.dup
 
-			# find the padding letter for str1
-			@padding_letter1 = begin
-				i = pletters.index{|l| _str2.index(l).nil?}
-				raise RuntimeError, "Could not find a padding letter for str1" if i.nil?
-				TextAlignment::PADDING_LETTERS[i]
+		# To get the (location, length) index for replacements
+		loc_len = []
+		char_mapping.each do |one, long|
+			next if long.length == 1
+
+			init_next = 0
+			while loc = str.index(long, init_next)
+				loc_len << [loc, long.length]
+				init_next = loc + 1
 			end
 
-			# find the padding letter for str2
-			@padding_letter2 = begin
-				i = pletters.index{|l| l != @padding_letter1 && _str1.index(l).nil?}
-				raise RuntimeError, "Could not find a padding letter for str2" if i.nil?
-				TextAlignment::PADDING_LETTERS[i]
-			end
-
-			str1 = str2 = nil
-			long_to_one_mappings.each do |f|
-				from = f[1]
-
-				str1 = if _str2.index(f[0])
-					to = f[0] + (@padding_letter1 * (f[1].length - 1))
-					_str1.gsub(from, to)
-				else
-					_str1
-				end
-
-				str2 = if _str1.index(f[0])
-					to = f[0] + (@padding_letter2 * (f[1].length - 1))
-					_str2.gsub(from, to)
-				else
-					_str2
-				end
-			end
-			mappings = _mappings.select{|m| m[0].length > 1 || m[1].length == 1}
-
-			[str1, str2, mappings]
+			# a workaround to avoid messing-up due to embedding
+			str.gsub!(long, one * long.length)
 		end
+		loc_len.sort!{|a, b| a[0] <=> b[0]}
+
+		# To get the offset_mapping before and after replacement
+		offset_mapping = []
+		init_next = 0
+		j = 0
+
+		loc_len.each do |loc, len|
+			offset_mapping += (init_next .. loc).map do |i|
+				j += 1
+				[i, j - 1]
+			end
+			init_next = loc + len
+		end
+
+		offset_mapping += (init_next .. str.length).map do |i|
+			j += 1
+			[i, j - 1]
+		end
+
+		# To get the string with the characters replaced
+		char_mapping.each do |one, long|
+			str.gsub!(one * long.length, one)
+		end
+
+		[str, offset_mapping]
+	end
+end
+
+if __FILE__ == $0
+	require 'json'
+
+	unless ARGV.length == 1
+		warn "#{$0} an_annotation_json_file.json" 
+		exit
+	end
+	annotations = JSON.parse File.read(ARGV[0]).strip, symbolize_names: true
+	denotations = annotations[:denotations]
+	if denotations.nil? && annotations[:tracks]
+		denotations = annotations[:tracks].first[:denotations]
 	end
 
-	def compute_similarity(_s1, _s2, sdiff)
-		return 0 if sdiff.nil?
+	str_mapping = TextAlignment::CharMapping.new(annotations[:text])
+	str_mapped = str_mapping.str
+	denotations_mapped = str_mapping.enmap_denotations(denotations)
+	new_annotations = {text:str_mapped, denotations:denotations_mapped}
 
-		# compute the lcs only with non-whitespace letters
-		lcs = sdiff.count{|d| d.action == '=' && d.old_element =~ /\S/ && d.new_element =~ /\S/}
-		return 0 if lcs == 0
-
-		s1 = if @padding_letter1
-			_s1.tr(@padding_letter1, ' ')
-		else
-			_s1
-		end
-
-		s2 = if @padding_letter2
-			_s2.tr(@padding_letter2, ' ')
-		else
-			_s2
-		end
-
-		similarity = lcs.to_f / [s1.scan(/\S/).count, s2.scan(/\S/).count].min
-	end
-
+	puts new_annotations.to_json
 end

@@ -6,7 +6,7 @@ require 'text_alignment/lcs_comparison'
 require 'text_alignment/lcs_alignment'
 require 'text_alignment/lcs_cdiff'
 require 'text_alignment/glcs_alignment'
-require 'text_alignment/mappings'
+require 'text_alignment/char_mapping'
 
 module TextAlignment; end unless defined? TextAlignment
 
@@ -20,7 +20,9 @@ class TextAlignment::MixedAlignment
 	def initialize(_str1, _str2, _mappings = nil)
 		raise ArgumentError, "nil string" if _str1.nil? || _str2.nil?
 
-		str1, str2, mappings = TextAlignment::long_to_one_mapping_preprocessing(_str1, _str2, _mappings)
+		mappings ||= TextAlignment::CHAR_MAPPING
+		str1 = _str1.dup
+		str2 = _str2.dup
 
 		_compute_mixed_alignment(str1, str2, mappings)
 	end
@@ -63,7 +65,7 @@ class TextAlignment::MixedAlignment
 		end
 
 		cmp = TextAlignment::LCSComparison.new(str1, str2, lcs, @sdiff)
-		@similarity         = TextAlignment::compute_similarity(str1, str2, @sdiff)
+		@similarity         = compute_similarity(str1, str2, @sdiff)
 		@str1_match_initial = cmp.str1_match_initial
 		@str1_match_final   = cmp.str1_match_final
 		@str2_match_initial = cmp.str2_match_initial
@@ -137,6 +139,16 @@ class TextAlignment::MixedAlignment
 
 		@position_map_begin = posmap_begin.sort.to_h
 		@position_map_end = posmap_end.sort.to_h
+	end
+
+	def compute_similarity(s1, s2, sdiff)
+		return 0 if sdiff.nil?
+
+		# compute the lcs only with non-whitespace letters
+		lcs = sdiff.count{|d| d.action == '=' && d.old_element =~ /\S/ && d.new_element =~ /\S/}
+		return 0 if lcs == 0
+
+		similarity = lcs.to_f / [s1.scan(/\S/).count, s2.scan(/\S/).count].min
 	end
 
 end

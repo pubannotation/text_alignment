@@ -10,14 +10,20 @@ class TextAlignment::TextAlignment
 	attr_reader :similarity
 	attr_reader :lost_annotations
 
-	def initialize(_str1, _str2, denotations = nil, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
+	def initialize(_str1, _str2, _denotations = nil, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
 		raise ArgumentError, "nil string" if _str1.nil? || _str2.nil?
 
-		@block_alignment = {source_text: _str1, target_text: _str2, denotations: denotations}
+		@block_alignment = {source_text: _str1, target_text: _str2, denotations: _denotations}
 		@original_str1 = _str1
 		@original_str2 = _str2
 
-		str1, str2, @mappings = TextAlignment::single_character_mapping_preprocessing(_str1, _str2)
+		@str1_mapping = TextAlignment::CharMapping.new(_str1)
+		@str2_mapping = TextAlignment::CharMapping.new(_str2)
+
+		str1 = @str1_mapping.str
+		denotations = @str1_mapping.enmap_denotations(_denotations)
+
+		str2 = @str2_mapping.str
 
 		if r = whole_block_alignment(str1, str2)
 			@block_alignment[:blocks] = r
@@ -184,7 +190,7 @@ class TextAlignment::TextAlignment
 					block2 = str2[b2 ... e2]
 
 					## character-based alignment
-					alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase, @mappings)
+					alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
 					if alignment.sdiff.nil?
 						[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
 					else
@@ -196,7 +202,7 @@ class TextAlignment::TextAlignment
 				block2 = str2[b2 ... e2]
 
 				## character-based alignment
-				alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase, @mappings)
+				alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
 				if alignment.sdiff.nil?
 					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
 				else
@@ -244,19 +250,9 @@ class TextAlignment::TextAlignment
 		end
 	end
 
+	def transform_begin_position(_begin_position)
+		begin_position = @str1_mapping.enmap_position(_begin_position)
 
-	def indices(str, target)
-	  position = 0
-	  len = target.len
-	  Enumerator.new do |yielder|
-	    while idx = str.index(target, position)
-	      yielder << idx
-	      position = idx + len
-	    end
-	  end
-	end
-
-	def transform_begin_position(begin_position)
 		i = @block_alignment[:blocks].index{|b| b[:source][:end] > begin_position}
 		block = @block_alignment[:blocks][i]
 
@@ -272,9 +268,13 @@ class TextAlignment::TextAlignment
 			r = block[:alignment].transform_begin_position(begin_position - block[:source][:begin])
 			r.nil? ? nil : r + block[:target][:begin]
 		end
+
+		@str2_mapping.demap_position(b)
 	end
 
-	def transform_end_position(end_position)
+	def transform_end_position(_end_position)
+		end_position = @str1_mapping.enmap_position(_end_position)
+
 		i = @block_alignment[:blocks].index{|b| b[:source][:end] >= end_position}
 		block = @block_alignment[:blocks][i]
 
@@ -290,6 +290,8 @@ class TextAlignment::TextAlignment
 			r = block[:alignment].transform_end_position(end_position - block[:source][:begin])
 			r.nil? ? nil : r + block[:target][:begin]
 		end
+
+		@str2_mapping.demap_position(e)
 	end
 
 	def transform_a_span(span)

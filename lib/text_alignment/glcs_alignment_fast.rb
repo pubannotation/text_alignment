@@ -5,7 +5,7 @@ require 'text_alignment/find_divisions'
 require 'text_alignment/lcs_comparison'
 require 'text_alignment/lcs_alignment'
 require 'text_alignment/glcs_alignment'
-require 'text_alignment/mappings'
+require 'text_alignment/char_mapping'
 
 module TextAlignment; end unless defined? TextAlignment
 
@@ -106,7 +106,7 @@ if __FILE__ == $0
 
 	dictionary = [["β", "beta"]]
 	# align = TextAlignment::TextAlignment.new(str1, str2)
-	align = TextAlignment::TextAlignment.new(str1, str2, TextAlignment::MAPPINGS)
+	align = TextAlignment::TextAlignment.new(str1, str2, TextAlignment::CHAR_MAPPING)
 	p align.common_elements
 	p align.mapped_elements
 end

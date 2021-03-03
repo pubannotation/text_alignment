@@ -2,6 +2,7 @@
 require 'text_alignment/constants'
 require 'text_alignment/anchor_finder'
 require 'text_alignment/mixed_alignment'
+require 'text_alignment/cultivation_map'
 
 module TextAlignment; end unless defined? TextAlignment
 
@@ -9,8 +10,9 @@ class TextAlignment::TextAlignment
 	attr_reader :block_alignment
 	attr_reader :similarity
 	attr_reader :lost_annotations
+	attr_reader :cultivation_map
 
-	def initialize(_str1, _str2, _denotations = nil, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
+	def initialize(_str1, _str2, _denotations = nil, _cultivation_map = nil)
 		raise ArgumentError, "nil string" if _str1.nil? || _str2.nil?
 
 		@block_alignment = {source_text: _str1, target_text: _str2, denotations: _denotations}
@@ -25,229 +27,32 @@ class TextAlignment::TextAlignment
 
 		str2 = @str2_mapping.str
 
-		if r = whole_block_alignment(str1, str2)
-			@block_alignment[:blocks] = r
-			return
-		end
+		@cultivation_map = _cultivation_map || TextAlignment::CultivationMap.new
 
-		## to find block alignments
-		anchor_finder = TextAlignment::AnchorFinder.new(str1, str2, _size_ngram, _size_window, _text_similiarity_threshold)
-
-		blocks = []
-		while block = anchor_finder.get_next_anchor
-			last = blocks.last
-			if last && (block[:source][:begin] == last[:source][:end] + 1) && (block[:target][:begin] == last[:target][:end] + 1)
-				last[:source][:end] = block[:source][:end]
-				last[:target][:end] = block[:target][:end]
-			else
-				blocks << block.merge(alignment: :block, delta: block[:target][:begin] - block[:source][:begin])
-			end
-		end
-
-		# pp blocks
-		# puts "-----"
-		# puts
-		# exit
-		# blocks.each do |b|
-		# 	p [b[:source], b[:target]]
-		# 	puts "---"
-		# 	puts str1[b[:source][:begin] ... b[:source][:end]]
-		# 	puts "---"
-		# 	puts str2[b[:target][:begin] ... b[:target][:end]]
-		# 	puts "====="
-		# 	puts
-		# end
-		# puts "-=-=-=-=-"
-		# puts
-
-		## to fill the gaps
-		last_block = nil
-		blocks2 = blocks.inject([]) do |sum, block|
-			b1 = last_block ? last_block[:source][:end] : 0
-			e1 = block[:source][:begin]
-
-			sum += if b1 == e1
-				[block]
-			else
-				b2 = last_block ? last_block[:target][:end] : 0
-				e2 = block[:target][:begin]
-
-				if b2 == e2
-					[
-						{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty},
-						block
-					]
-				else
-					if b1 == 0 && b2 == 0
-						len_buffer = (e1 * (1 + TextAlignment::BUFFER_RATE)).to_i + TextAlignment::BUFFER_MIN
-						b2 = e2 - len_buffer if e2 > len_buffer
-					end
-
-					_str1 = str1[b1 ... e1]
-					_str2 = str2[b2 ... e2]
-
-					if _str1.strip.empty? || _str2.strip.empty?
-						[
-							{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty},
-							block
-						]
-					else
-						local_alignment_blocks(str1, b1, e1, str2, b2, e2, denotations) << block
-					end
-				end
-			end
-
-			last_block = block
-			sum
-		end
-
-		# the last step
-		blocks2 += if last_block.nil?
-			local_alignment_blocks(str1, 0, str1.length, str2, 0, str2.length, denotations)
+		@block_alignment[:blocks] = if r = whole_block_alignment(str1, str2, @cultivation_map)
+			# whole block alignment
+			r
 		else
-			b1 = last_block[:source][:end]
-			if b1 < str1.length
-				e1 = str1.length
+			find_block_alignment(str1, str2, denotations, @cultivation_map)
+		end
 
-				b2 = last_block[:target][:end]
-				if b2 < str2.length
-					len_buffer = ((e1 - b1) * (1 + TextAlignment::BUFFER_RATE)).to_i + TextAlignment::BUFFER_MIN
-					e2 = (str2.length - b2) > len_buffer ? b2 + len_buffer : str2.length
-					local_alignment_blocks(str1, b1, e1, str2, b2, e2, denotations)
-				else
-					[{source:{begin:last_block[:source][:end], end:str1.length}, alignment: :empty}]
-				end
+		newly_cultivated_regions = @block_alignment[:blocks].collect do |b|
+			if b[:alignment] == :block || b[:alignment] == :term
+				[b[:target][:begin], b[:target][:end]]
 			else
-				[]
+				nil
 			end
-		end
-
-		@block_alignment[:blocks] = blocks2
-	end
-
-	def whole_block_alignment(str1, str2)
-		## Block exact match
-		block_begin = str2.index(str1)
-		unless block_begin.nil?
-			return [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
-		end
-
-		block_begin = str2.downcase.index(str1.downcase)
-		unless block_begin.nil?
-			return [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
-		end
-
-		nil
-	end
-
-	def local_alignment_blocks(str1, b1, e1, str2, b2, e2, denotations = nil)
-		block2 = str2[b2 ... e2]
-
-		## term-based alignment
-		tblocks = if denotations
-			ds_in_scope = denotations.select{|d| d[:span][:begin] >= b1 && d[:span][:end] <= e1}.
-							sort{|d1, d2| d1[:span][:begin] <=> d2[:span][:begin] || d2[:span][:end] <=> d1[:span][:end] }.
-							map{|d| d.merge(lex:str1[d[:span][:begin] ... d[:span][:end]])}
-
-			position = 0
-			tblocks = ds_in_scope.map do |term|
-				lex = term[:lex]
-				r = block2.index(lex, position)
-				if r.nil?
-					position = nil
-					break
-				end
-				position = r + lex.length
-				{source:term[:span], target:{begin:r + b2, end:r + b2 + lex.length}, alignment: :term, delta: r + b2 - term[:span][:begin]}
-			end
-
-			# missing term found
-			tblocks = [] if position.nil?
-
-			# redundant matching found
-			unless position.nil?
-				ds_in_scope.each do |term|
-					lex = term[:lex]
-					look_forward = block2.index(lex, position)
-					unless look_forward.nil?
-						tblocks = []
-						break
-					end
-				end
-			end
-
-			tblocks
-		else
-			[]
-		end
-
-		if tblocks.empty?
-			if b1 == 0 && e1 == str1.length
-				if (e1 > 2000) || (e2 > 2000)
-					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
-				else
-					block1 = str1[b1 ... e1]
-					block2 = str2[b2 ... e2]
-
-					## character-based alignment
-					alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
-					if alignment.sdiff.nil?
-						[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
-					else
-						[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: alignment, similarity: alignment.similarity}]
-					end
-				end
+		end.compact
+		newly_cultivated_regions_condensed = newly_cultivated_regions.inject([]) do |condensed, region|
+			if condensed.empty? || (condensed.last.last + 1 < region.first)
+				condensed.push region
 			else
-				block1 = str1[b1 ... e1]
-				block2 = str2[b2 ... e2]
-
-				## character-based alignment
-				alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
-				if alignment.sdiff.nil?
-					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
-				else
-					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: alignment, similarity: alignment.similarity}]
-				end
+				condensed.last[1] = region.last
 			end
-		else
-			last_tblock = nil
-			lblocks = tblocks.inject([]) do |sum, tblock|
-				tb1 = last_tblock ? last_tblock[:source][:end] : b1
-				te1 = tblock[:source][:begin]
-
-				sum += if te1 == tb1
-					[tblock]
-				else
-					tb2 = last_tblock ? last_tblock[:target][:end] : b2
-					te2 = tblock[:target][:begin]
-
-					if b2 == e2
-						[
-							{source:{begin:tb1, end:te1}, alignment: :empty},
-							tblock
-						]
-					else
-						[
-							{source:{begin:tb1, end:te1}, target:{begin:tb2, end:te2}, alignment: :empty},
-							tblock
-						]
-					end
-				end
-
-				last_tblock = tblock
-				sum
-			end
-
-			if last_tblock[:source][:end] < e1
-				if last_tblock[:target][:end] < e2
-					lblocks << {source:{begin:last_tblock[:source][:end], end:e1}, target:{begin:last_tblock[:target][:end], end:e2}, alignment: :empty}
-				else
-					lblocks << {source:{begin:last_tblock[:source][:end], end:e1}, alignment: :empty}
-				end
-			end
-
-			lblocks
+			condensed
 		end
+
+		@cultivation_map.cultivate(newly_cultivated_regions_condensed)
 	end
 
 	def transform_begin_position(_begin_position)
@@ -399,4 +204,255 @@ class TextAlignment::TextAlignment
 		end
 		show
 	end
+
+	private
+
+	def find_block_alignment(str1, str2, denotations, cultivation_map)
+		## to find block alignments
+		anchor_finder = TextAlignment::AnchorFinder.new(str1, str2, cultivation_map)
+
+		blocks = []
+		while block = anchor_finder.get_next_anchor
+			last = blocks.last
+			if last && (block[:source][:begin] == last[:source][:end] + 1) && (block[:target][:begin] == last[:target][:end] + 1)
+				last[:source][:end] = block[:source][:end]
+				last[:target][:end] = block[:target][:end]
+			else
+				blocks << block.merge(alignment: :block, delta: block[:target][:begin] - block[:source][:begin])
+			end
+		end
+
+		# pp blocks
+		# puts "-----"
+		# puts
+		# exit
+		# blocks.each do |b|
+		# 	p [b[:source], b[:target]]
+		# 	puts "---"
+		# 	puts str1[b[:source][:begin] ... b[:source][:end]]
+		# 	puts "---"
+		# 	puts str2[b[:target][:begin] ... b[:target][:end]]
+		# 	puts "====="
+		# 	puts
+		# end
+		# puts "-=-=-=-=-"
+		# puts
+
+		## to fill the gaps
+		last_block = nil
+		blocks2 = blocks.inject([]) do |sum, block|
+			b1 = last_block ? last_block[:source][:end] : 0
+			e1 = block[:source][:begin]
+
+			sum += if b1 == e1
+				[block]
+			else
+				b2 = last_block ? last_block[:target][:end] : 0
+				e2 = block[:target][:begin]
+
+				if b2 == e2
+					[
+						{source:{begin:b1, end:e1}, alignment: :empty},
+						block
+					]
+				else
+					len_buffer = ((e1 - b1) * (1 + TextAlignment::BUFFER_RATE)).to_i + TextAlignment::BUFFER_MIN
+
+					if b1 == 0 && b2 == 0
+						b2 = e2 - len_buffer if e2 > len_buffer
+					end
+
+					_str1 = str1[b1 ... e1]
+					_str2 = str2[b2 ... e2]
+
+					if _str1.strip.empty? || _str2.strip.empty?
+						[
+							{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty},
+							block
+						]
+					elsif ((e2 - b2) - (e1 - b1)) > len_buffer
+						la_block1 = local_alignment_blocks(str1, b1, e1, str2, b2, b2 + len_buffer, denotations)
+						la_block2 = local_alignment_blocks(str1, b1, e1, str2, e2 - len_buffer, e2, denotations)
+						[la_block2, la_block2].max{|a, b| a.first[:similarity] <=> b.first[:similarity]} << block
+					else
+						local_alignment_blocks(str1, b1, e1, str2, b2, e2, denotations) << block
+					end
+				end
+			end
+
+			last_block = block
+			sum
+		end
+
+		# the last step
+		blocks2 += if last_block.nil?
+			local_alignment_blocks(str1, 0, str1.length, str2, 0, str2.length, denotations)
+		else
+			b1 = last_block[:source][:end]
+			if b1 < str1.length
+				e1 = str1.length
+				b2 = last_block[:target][:end]
+
+				_str1 = str1[b1 ... e1]
+				if _str1.strip.empty?
+					[{source:{begin:b1, end:e1}, alignment: :empty}]
+				else
+					if b2 < str2.length
+						len_buffer = ((e1 - b1) * (1 + TextAlignment::BUFFER_RATE)).to_i + TextAlignment::BUFFER_MIN
+						e2 = (str2.length - b2) > len_buffer ? b2 + len_buffer : str2.length
+
+						local_alignment_blocks(str1, b1, e1, str2, b2, e2, denotations)
+					else
+						[{source:{begin:b1, end:e1}, alignment: :empty}]
+					end
+				end
+			else
+				[]
+			end
+		end
+	end
+
+	def whole_block_alignment(str1, str2, cultivation_map)
+		## Block exact match
+		search_position = 0
+
+		block_begin = begin
+			_block_begin = str2.index(str1, search_position)
+			break if _block_begin.nil?
+			search_position = cultivation_map.search_again_position(_block_begin)
+			_block_begin
+		end until search_position.nil?
+
+		unless block_begin.nil?
+			return [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
+		end
+
+		search_position = 0
+
+		dstr1 = str1.downcase
+		dstr2 = str2.downcase
+		block_begin = begin
+			_block_begin = dstr2.index(dstr1, search_position)
+			break if _block_begin.nil?
+			search_position = cultivation_map.search_again_position(_block_begin)
+			_block_begin
+		end until search_position.nil?
+
+		unless block_begin.nil?
+			return [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}]
+		end
+
+		nil
+	end
+
+	def local_alignment_blocks(str1, b1, e1, str2, b2, e2, denotations = nil)
+		block2 = str2[b2 ... e2]
+
+		## term-based alignment
+		tblocks = if denotations
+			ds_in_scope = denotations.select{|d| d[:span][:begin] >= b1 && d[:span][:end] <= e1}.
+							sort{|d1, d2| d1[:span][:begin] <=> d2[:span][:begin] || d2[:span][:end] <=> d1[:span][:end] }.
+							map{|d| d.merge(lex:str1[d[:span][:begin] ... d[:span][:end]])}
+
+			position = 0
+			_tblocks = ds_in_scope.map do |term|
+				lex = term[:lex]
+				r = block2.index(lex, position)
+				if r.nil?
+					position = nil
+					break
+				end
+				position = r + lex.length
+				{source:term[:span], target:{begin:r + b2, end:r + b2 + lex.length}, alignment: :term, similarity: 0.9, delta: r + b2 - term[:span][:begin]}
+			end
+
+			# missing term found
+			_tblocks = [] if position.nil?
+
+			# redundant matching found
+			unless position.nil?
+				ds_in_scope.each do |term|
+					lex = term[:lex]
+					look_forward = block2.index(lex, position)
+					unless look_forward.nil?
+						_tblocks = []
+						break
+					end
+				end
+			end
+
+			_tblocks
+		else
+			[]
+		end
+
+		if tblocks.empty?
+			if b1 == 0 && e1 == str1.length
+				if (e1 > 2000) || (e2 > 2000)
+					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
+				else
+					block1 = str1[b1 ... e1]
+					block2 = str2[b2 ... e2]
+
+					## character-based alignment
+					alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
+					if alignment.sdiff.nil?
+						[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
+					else
+						[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: alignment, similarity: alignment.similarity}]
+					end
+				end
+			else
+				block1 = str1[b1 ... e1]
+				block2 = str2[b2 ... e2]
+
+				## character-based alignment
+				alignment = TextAlignment::MixedAlignment.new(block1.downcase, block2.downcase)
+				if alignment.sdiff.nil?
+					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
+				else
+					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: alignment, similarity: alignment.similarity}]
+				end
+			end
+		else
+			last_tblock = nil
+			lblocks = tblocks.inject([]) do |sum, tblock|
+				tb1 = last_tblock ? last_tblock[:source][:end] : b1
+				te1 = tblock[:source][:begin]
+
+				sum += if te1 == tb1
+					[tblock]
+				else
+					tb2 = last_tblock ? last_tblock[:target][:end] : b2
+					te2 = tblock[:target][:begin]
+
+					if b2 == e2
+						[
+							{source:{begin:tb1, end:te1}, alignment: :empty},
+							tblock
+						]
+					else
+						[
+							{source:{begin:tb1, end:te1}, target:{begin:tb2, end:te2}, alignment: :empty},
+							tblock
+						]
+					end
+				end
+
+				last_tblock = tblock
+				sum
+			end
+
+			if last_tblock[:source][:end] < e1
+				if last_tblock[:target][:end] < e2
+					lblocks << {source:{begin:last_tblock[:source][:end], end:e1}, target:{begin:last_tblock[:target][:end], end:e2}, alignment: :empty}
+				else
+					lblocks << {source:{begin:last_tblock[:source][:end], end:e1}, alignment: :empty}
+				end
+			end
+
+			lblocks
+		end
+	end
+
 end

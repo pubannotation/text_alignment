@@ -6,16 +6,18 @@ module TextAlignment; end unless defined? TextAlignment
 
 class TextAlignment::AnchorFinder
 
-	def initialize(source_str, target_str, _size_ngram = nil, _size_window = nil, _text_similiarity_threshold = nil)
+	def initialize(source_str, target_str, cultivation_map)
 		@s1, @s2 = if reverse?(source_str, target_str)
 			[target_str.downcase, source_str.downcase]
 		else
 			[source_str.downcase, target_str.downcase]
 		end
 
-		@size_ngram  = _size_ngram  || TextAlignment::SIZE_NGRAM
-		@size_window = _size_window || TextAlignment::SIZE_WINDOW
-		@sim_threshold = _text_similiarity_threshold || TextAlignment::TEXT_SIMILARITY_THRESHOLD
+		@cultivation_map = cultivation_map
+
+		@size_ngram  = TextAlignment::SIZE_NGRAM
+		@size_window = TextAlignment::SIZE_WINDOW
+		@sim_threshold = TextAlignment::TEXT_SIMILARITY_THRESHOLD
 		@pos_s1_final_possible_begin = @s1.length - @size_ngram - 1
 
 		# positions of last match
@@ -82,7 +84,7 @@ class TextAlignment::AnchorFinder
 		beg_s2_candidates = find_beg_s2_candidates(anchor, search_position)
 		return nil if beg_s2_candidates.empty?
 
-		beg_s2 = find_valid_beg_s2(beg_s1, beg_s2_candidates)
+		find_valid_beg_s2(beg_s1, beg_s2_candidates)
 	end
 
 	# To find beg_s2 which match to the anchor
@@ -90,6 +92,12 @@ class TextAlignment::AnchorFinder
 	def find_beg_s2_candidates(anchor, search_position)
 		candidates = []
 		while _beg_s2 = @s2.index(anchor, search_position)
+			search_again_position = @cultivation_map.search_again_position(_beg_s2)
+			unless search_again_position.nil?
+				search_position = search_again_position
+				next
+			end
+
 			candidates << _beg_s2
 
 			# for speed, skip anchor of high frequency

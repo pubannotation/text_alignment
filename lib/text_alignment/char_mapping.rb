@@ -61,9 +61,10 @@ TextAlignment::CHAR_MAPPING = [
 	["•", "*"],				#U+2022 (bullet)
 	[" ", " "],				#U+2009 (thin space)
 	[" ", " "],				#U+200A (hair space)
-	[" ", " "],				#U+00A0 (no-break space)
+	[" ", " "],				#U+00A0 (Non-Breaking space)
 	["　", " "],				#U+3000 (ideographic space)
-	["‑", "-"],				#U+2211 (Non-Breaking Hyphen)
+	["‐", "-"],				#U+2010 (Hyphen)
+	["‑", "-"],				#U+2011 (Non-Breaking Hyphen)
 	["−", "-"],				#U+2212 (minus sign)
 	["–", "-"],				#U+2013 (en dash)
 	["′", "'"],				#U+2032 (prime)
@@ -104,6 +105,11 @@ class TextAlignment::CharMapping
 	def enmap_str(_str, char_mapping)
 		str = _str.dup
 
+		# To execute the single letter mapping
+		char_mapping.each do |one, long|
+			str.gsub!(one, long) if long.length == 1
+		end
+
 		# To get the (location, length) index for replacements
 		loc_len = []
 		char_mapping.each do |one, long|
@@ -112,12 +118,21 @@ class TextAlignment::CharMapping
 			init_next = 0
 			while loc = str.index(long, init_next)
 				loc_len << [loc, long.length]
-				init_next = loc + 1
+				init_next = loc + long.length
 			end
 
 			# a workaround to avoid messing-up due to embedding
 			str.gsub!(long, one * long.length)
 		end
+
+		# To get the (location, length) index for consecutive whitespace sequences
+		init_next = 0
+		while loc = str.index(/\s{2,}/, init_next)
+			len = $~[0].length
+			loc_len << [loc, len]
+			init_next = loc + len
+		end
+
 		loc_len.sort!{|a, b| a[0] <=> b[0]}
 
 		# To get the offset_mapping before and after replacement
@@ -138,10 +153,13 @@ class TextAlignment::CharMapping
 			[i, j - 1]
 		end
 
-		# To get the string with the characters replaced
+		# To execute the long letter mapping
 		char_mapping.each do |one, long|
-			str.gsub!(one * long.length, one)
+			str.gsub!(one * long.length, one) if long.length > 1
 		end
+
+		# To replace multi whitespace sequences to a space
+		str.gsub!(/\s{2,}/, ' ')
 
 		[str, offset_mapping]
 	end

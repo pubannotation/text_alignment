@@ -26,8 +26,9 @@ def read_text(filename)
 	end
 end
 
-def align_denotations(denotations, source_text, target_text, debug = false)
-	alignment = TextAlignment::TextAlignment.new(source_text, target_text, denotations)
+def align_denotations(denotations, source_text, target_text, debug = false, cm = nil)
+	alignment = TextAlignment::TextAlignment.new(source_text, target_text, denotations, cm)
+	cm = alignment.cultivation_map
 	new_denotations = alignment.transform_hdenotations(denotations)
 
 	if debug
@@ -47,7 +48,7 @@ def align_denotations(denotations, source_text, target_text, debug = false)
 	warn
 
 	# return target annotations
-	new_denotations
+	[new_denotations, cm]
 end
 
 def align_mannotations(source_annotations, target_text, debug = false)
@@ -58,11 +59,13 @@ def align_mannotations(source_annotations, target_text, debug = false)
 	idnum_attributes = 0
 	idnum_modifications = 0
 
+	cm = nil
 	source_annotations.each_with_index do |annotations, i|
 		if annotations.has_key?(:denotations) && !annotations[:denotations].empty?
 			ididx = {}
 			warn "[#{i}]-=-=-=-=-"
-			denotations = align_denotations(annotations[:denotations], annotations[:text], target_text, debug)
+			denotations, cm = align_denotations(annotations[:denotations], annotations[:text], target_text, debug, cm)
+
 			denotations.each do |d|
 				reid = 'T' + (idnum_denotations += 1).to_s
 				ididx[d[:id]] = reid
@@ -114,7 +117,7 @@ target_text = read_text(ARGV[1])
 target_annotations = if source_annotations.class == Array
 	align_mannotations(source_annotations, target_text, false)
 else
-	denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], target_text, false)
+	denotations, cm = align_denotations(source_annotations[:denotations], source_annotations[:text], target_text, false)
 	# denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], target_text, true)
 	source_annotations.merge({text:target_text, denotations:denotations})
 end

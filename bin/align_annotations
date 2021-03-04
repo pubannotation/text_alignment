@@ -26,9 +26,8 @@ def read_text(filename)
 	end
 end
 
-def align_denotations(denotations, source_text, target_text, debug = false, cm = nil)
-	alignment = TextAlignment::TextAlignment.new(source_text, target_text, denotations, cm)
-	cm = alignment.cultivation_map
+def align_denotations(denotations, source_text, alignment, debug = false)
+	alignment.align(source_text, denotations)
 	new_denotations = alignment.transform_hdenotations(denotations)
 
 	if debug
@@ -48,23 +47,22 @@ def align_denotations(denotations, source_text, target_text, debug = false, cm =
 	warn
 
 	# return target annotations
-	[new_denotations, cm]
+	new_denotations
 end
 
-def align_mannotations(source_annotations, target_text, debug = false)
-	target_annotations = {text:target_text}
+def align_mannotations(source_annotations, reference_text, alignment, debug = false)
+	target_annotations = {text:reference_text}
 
 	idnum_denotations = 0
 	idnum_relations = 0
 	idnum_attributes = 0
 	idnum_modifications = 0
 
-	cm = nil
 	source_annotations.each_with_index do |annotations, i|
 		if annotations.has_key?(:denotations) && !annotations[:denotations].empty?
 			ididx = {}
 			warn "[#{i}]-=-=-=-=-"
-			denotations, cm = align_denotations(annotations[:denotations], annotations[:text], target_text, debug, cm)
+			denotations = align_denotations(annotations[:denotations], annotations[:text], alignment, debug)
 
 			denotations.each do |d|
 				reid = 'T' + (idnum_denotations += 1).to_s
@@ -112,14 +110,16 @@ unless ARGV.length == 2
 end
 
 source_annotations = read_annotations(ARGV[0])
-target_text = read_text(ARGV[1])
+reference_text = read_text(ARGV[1])
+
+alignment = TextAlignment::TextAlignment.new(reference_text, true)
 
 target_annotations = if source_annotations.class == Array
-	align_mannotations(source_annotations, target_text, false)
+	align_mannotations(source_annotations, reference_text, alignment, false)
 else
-	denotations, cm = align_denotations(source_annotations[:denotations], source_annotations[:text], target_text, false)
-	# denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], target_text, true)
-	source_annotations.merge({text:target_text, denotations:denotations})
+	denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], alignment)
+	# denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], reference_text, true)
+	source_annotations.merge({text:reference_text, denotations:denotations})
 end
 
 puts target_annotations.to_json

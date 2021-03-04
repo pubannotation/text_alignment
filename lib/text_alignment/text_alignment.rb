@@ -10,40 +10,59 @@ class TextAlignment::TextAlignment
 	attr_reader :block_alignment
 	attr_reader :similarity
 	attr_reader :lost_annotations
-	attr_reader :cultivation_map
 
-	def initialize(_str1, _str2, _denotations = nil, _cultivation_map = nil)
-		raise ArgumentError, "nil string" if _str1.nil? || _str2.nil?
+	# Initialize with a reference text, again which texts will be aligned
+	def initialize(reference_text, to_prevent_overlap = false)
+		raise ArgumentError, "nil text" if reference_text.nil?
 
-		@block_alignment = {source_text: _str1, target_text: _str2, denotations: _denotations}
-		@original_str1 = _str1
-		@original_str2 = _str2
+		@original_rtext = reference_text
+		@rtext_mapping = TextAlignment::CharMapping.new(reference_text)
+		@to_prevent_overlap = to_prevent_overlap
 
-		@str1_mapping = TextAlignment::CharMapping.new(_str1)
-		@str2_mapping = TextAlignment::CharMapping.new(_str2)
+		@original_text = nil
+		@block_alignment = nil
+		@cultivation_map = TextAlignment::CultivationMap.new
+	end
 
-		str1 = @str1_mapping.str
-		denotations = @str1_mapping.enmap_denotations(_denotations)
+	def align(text, denotations = nil)
+		# To maintain the cultivation map
+		update_cultivation_map if @to_prevent_overlap
 
-		str2 = @str2_mapping.str
-
-		@cultivation_map = _cultivation_map || TextAlignment::CultivationMap.new
-
-		@block_alignment[:blocks] = if r = whole_block_alignment(str1, str2, @cultivation_map)
-			# whole block alignment
-			r
-		else
-			find_block_alignment(str1, str2, denotations, @cultivation_map)
+		# In case the input text is the same as the previous one, reuse the previous text mapping
+		unless @original_text && @original_text == text
+			@original_text = text
+			@text_mapping = TextAlignment::CharMapping.new(text)
 		end
 
+		text_mapped = @text_mapping.mapped_text
+		denotations_mapped = @text_mapping.enmap_denotations(denotations)
+
+		rtext_mapped = @rtext_mapping.mapped_text
+
+		## To generate the block_alignment of the input text against the reference text
+
+		# Initialization
+		@block_alignment = {text: @original_text, reference_text: @original_rtext, denotations: denotations}
+
+		# Generation
+		@block_alignment[:blocks] = if r = whole_block_alignment(text_mapped, rtext_mapped, @cultivation_map)
+			r
+		else
+			find_block_alignment(text_mapped, rtext_mapped, denotations_mapped, @cultivation_map)
+		end
+	end
+
+	def update_cultivation_map
+		return if @block_alignment.nil? || @block_alignment[:blocks].nil?
+
+		## To update the cultivation map
 		newly_cultivated_regions = @block_alignment[:blocks].collect do |b|
 			if b[:alignment] == :block || b[:alignment] == :term
 				[b[:target][:begin], b[:target][:end]]
 			else
 				nil
 			end
-		end.compact
-		newly_cultivated_regions_condensed = newly_cultivated_regions.inject([]) do |condensed, region|
+		end.compact.inject([]) do |condensed, region|
 			if condensed.empty? || (condensed.last.last + 1 < region.first)
 				condensed.push region
 			else
@@ -52,11 +71,11 @@ class TextAlignment::TextAlignment
 			condensed
 		end
 
-		@cultivation_map.cultivate(newly_cultivated_regions_condensed)
+		@cultivation_map.cultivate(newly_cultivated_regions)
 	end
 
 	def transform_begin_position(_begin_position)
-		begin_position = @str1_mapping.enmap_position(_begin_position)
+		begin_position = @text_mapping.enmap_position(_begin_position)
 
 		i = @block_alignment[:blocks].index{|b| b[:source][:end] > begin_position}
 		block = @block_alignment[:blocks][i]
@@ -74,11 +93,11 @@ class TextAlignment::TextAlignment
 			r.nil? ? nil : r + block[:target][:begin]
 		end
 
-		@str2_mapping.demap_position(b)
+		@rtext_mapping.demap_position(b)
 	end
 
 	def transform_end_position(_end_position)
-		end_position = @str1_mapping.enmap_position(_end_position)
+		end_position = @text_mapping.enmap_position(_end_position)
 
 		i = @block_alignment[:blocks].index{|b| b[:source][:end] >= end_position}
 		block = @block_alignment[:blocks][i]
@@ -96,7 +115,7 @@ class TextAlignment::TextAlignment
 			r.nil? ? nil : r + block[:target][:begin]
 		end
 
-		@str2_mapping.demap_position(e)
+		@rtext_mapping.demap_position(e)
 	end
 
 	def transform_a_span(span)
@@ -115,7 +134,7 @@ class TextAlignment::TextAlignment
 			source = {begin:d.begin, end:d.end}
 			d.begin = transform_begin_position(d.begin);
 			d.end = transform_end_position(d.end);
-			raise "invalid transform" unless !d.begin.nil? && !d.end.nil? && d.begin >= 0 && d.end > d.begin && d.end <= @original_str2.length
+			raise "invalid transform" unless !d.begin.nil? && !d.end.nil? && d.begin >= 0 && d.end > d.begin && d.end <= @original_rtext.length
 		rescue
 			@lost_annotations << {source: source, target:{begin:d.begin, end:d.end}}
 			d.begin = nil
@@ -131,7 +150,7 @@ class TextAlignment::TextAlignment
 
 		r = hdenotations.collect do |d|
 			t = transform_a_span(d[:span])
-			raise "invalid transform" unless !t[:begin].nil? && !t[:end].nil? && t[:begin] >= 0 && t[:end] > t[:begin] && t[:end] <= @original_str2.length
+			raise "invalid transform" unless !t[:begin].nil? && !t[:end].nil? && t[:begin] >= 0 && t[:end] > t[:begin] && t[:end] <= @original_rtext.length
 			new_d = d.dup.merge({span:t})
 		rescue
 			@lost_annotations << {source: d[:span], target:t}
@@ -142,8 +161,8 @@ class TextAlignment::TextAlignment
 	end
 
 	def alignment_show
-		stext = @block_alignment[:source_text]
-		ttext = @block_alignment[:target_text]
+		stext = @block_alignment[:text]
+		ttext = @block_alignment[:reference_text]
 
 		show = ''
 		@block_alignment[:blocks].each do |a|

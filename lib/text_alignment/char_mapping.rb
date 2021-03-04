@@ -77,11 +77,11 @@ TextAlignment::CHAR_MAPPING = [
 
 
 class TextAlignment::CharMapping
-	attr_reader :str
+	attr_reader :mapped_text
 
-	def initialize(_str, char_mapping = nil)
+	def initialize(_text, char_mapping = nil)
 		char_mapping ||= TextAlignment::CHAR_MAPPING
-		@str, offset_mapping = enmap_str(_str, char_mapping)
+		@mapped_text, offset_mapping = enmap_text(_text, char_mapping)
 		@index_enmap = offset_mapping.to_h
 		@index_demap = offset_mapping.map{|m| m.reverse}.to_h
 	end
@@ -95,6 +95,8 @@ class TextAlignment::CharMapping
 	end
 
 	def enmap_denotations(_denotations)
+		return nil if _denotations.nil?
+
 		denotations = _denotations.map do |d|
 			d.dup.merge(span:{begin:enmap_position(d[:span][:begin]), end:enmap_position(d[:span][:end])})
 		end
@@ -102,12 +104,12 @@ class TextAlignment::CharMapping
 
 	private
 
-	def enmap_str(_str, char_mapping)
-		str = _str.dup
+	def enmap_text(_text, char_mapping)
+		text = _text.dup
 
 		# To execute the single letter mapping
 		char_mapping.each do |one, long|
-			str.gsub!(one, long) if long.length == 1
+			text.gsub!(one, long) if long.length == 1
 		end
 
 		# To get the (location, length) index for replacements
@@ -116,18 +118,18 @@ class TextAlignment::CharMapping
 			next if long.length == 1
 
 			init_next = 0
-			while loc = str.index(long, init_next)
+			while loc = text.index(long, init_next)
 				loc_len << [loc, long.length]
 				init_next = loc + long.length
 			end
 
 			# a workaround to avoid messing-up due to embedding
-			str.gsub!(long, one * long.length)
+			text.gsub!(long, one * long.length)
 		end
 
 		# To get the (location, length) index for consecutive whitespace sequences
 		init_next = 0
-		while loc = str.index(/\s{2,}/, init_next)
+		while loc = text.index(/\s{2,}/, init_next)
 			len = $~[0].length
 			loc_len << [loc, len]
 			init_next = loc + len
@@ -148,20 +150,20 @@ class TextAlignment::CharMapping
 			init_next = loc + len
 		end
 
-		offset_mapping += (init_next .. str.length).map do |i|
+		offset_mapping += (init_next .. text.length).map do |i|
 			j += 1
 			[i, j - 1]
 		end
 
 		# To execute the long letter mapping
 		char_mapping.each do |one, long|
-			str.gsub!(one * long.length, one) if long.length > 1
+			text.gsub!(one * long.length, one) if long.length > 1
 		end
 
 		# To replace multi whitespace sequences to a space
-		str.gsub!(/\s{2,}/, ' ')
+		text.gsub!(/\s{2,}/, ' ')
 
-		[str, offset_mapping]
+		[text, offset_mapping]
 	end
 end
 
@@ -178,10 +180,10 @@ if __FILE__ == $0
 		denotations = annotations[:tracks].first[:denotations]
 	end
 
-	str_mapping = TextAlignment::CharMapping.new(annotations[:text])
-	str_mapped = str_mapping.str
-	denotations_mapped = str_mapping.enmap_denotations(denotations)
-	new_annotations = {text:str_mapped, denotations:denotations_mapped}
+	text_mapping = TextAlignment::CharMapping.new(annotations[:text])
+	text_mapped = text_mapping.mapped_text
+	denotations_mapped = text_mapping.enmap_denotations(denotations)
+	new_annotations = {text:text_mapped, denotations:denotations_mapped}
 
 	puts new_annotations.to_json
 end

@@ -144,11 +144,17 @@ class TextAlignment::MixedAlignment
 	def compute_similarity(s1, s2, sdiff)
 		return 0 if sdiff.nil?
 
-		# compute the lcs only with non-whitespace letters
-		lcs = sdiff.count{|d| d.action == '=' && d.old_element =~ /\S/ && d.new_element =~ /\S/}
-		return 0 if lcs == 0
+		# recoverbility
+		count_nws =	sdiff.count{|d| d.old_element =~ /\S/}
+		count_nws_match =	sdiff.count{|d| d.action == '=' && d.old_element =~ /\S/}
 
-		similarity = lcs.to_f / [s1.scan(/\S/).count, s2.scan(/\S/).count].min
+		coverage = count_nws_match.to_f / count_nws
+
+		# fragmentation rate
+		count_ofrag = sdiff.count{|d| d.old_element =~ /\s/}
+		count_frag = sdiff.collect{|d| (d.action == '=') && (d.old_element =~/\s/) ? ' ' : d.action}.join.scan(/=+/).count
+		rate_frag = count_ofrag.to_f / count_frag
+
+		similarity = coverage * rate_frag
 	end
-
 end

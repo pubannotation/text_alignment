@@ -77,7 +77,9 @@ def align_mannotations(source_annotations, reference_text, alignment, debug = fa
 				annotations[:relations].each do |r|
 					reid = 'R' + (idnum_relations += 1).to_s
 					ididx[r[:id]] = reid
-					target_annotations[:relations] << r.dup.merge({id:reid, subj:ididx[r[:subj]], obj:ididx[r[:obj]]})
+					sid = ididx[r[:subj]]
+					oid = ididx[r[:obj]]
+					target_annotations[:relations] << r.dup.merge({id:reid, subj:sid, obj:oid}) unless sid.nil? || oid.nil?
 				end
 			end
 
@@ -86,7 +88,8 @@ def align_mannotations(source_annotations, reference_text, alignment, debug = fa
 				annotations[:attributes].each do |a|
 					reid = 'A' + (idnum_attributes += 1).to_s
 					ididx[a[:id]] = reid
-					target_annotations[:attributes] << a.dup.merge({id:reid, subj:ididx[a[:subj]]})
+					sid = ididx[a[:subj]]
+					target_annotations[:attributes] << a.dup.merge({id:reid, subj:sid}) unless sid.nil?
 				end
 			end
 
@@ -95,7 +98,8 @@ def align_mannotations(source_annotations, reference_text, alignment, debug = fa
 				annotations[:modifications].each do |m|
 					reid = 'M' + (idnum_modifications += 1).to_s
 					ididx[m[:id]] = reid
-					target_annotations[:modifications] << m.dup.merge({id:reid, obj:ididx[m[:obj]]})
+					oid = ididx[m[:obj]]
+					target_annotations[:modifications] << m.dup.merge({id:reid, obj:oid}) unless oid.nil?
 				end
 			end
 		end
@@ -115,11 +119,13 @@ reference_text = read_text(ARGV[1])
 alignment = TextAlignment::TextAlignment.new(reference_text, true)
 
 target_annotations = if source_annotations.class == Array
+	# align_mannotations(source_annotations, reference_text, alignment, true)
 	align_mannotations(source_annotations, reference_text, alignment, false)
 else
-	denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], alignment)
-	# denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], reference_text, true)
+	# denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], alignment)
+	denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], alignment, false)
 	source_annotations.merge({text:reference_text, denotations:denotations})
 end
 
+# pp alignment.block_alignment
 puts target_annotations.to_json

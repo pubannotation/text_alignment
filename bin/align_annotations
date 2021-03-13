@@ -37,7 +37,7 @@ def align_denotations(denotations, source_text, alignment, debug = false)
 	end
 
 	lost_annotations = alignment.lost_annotations
-	unless lost_annotations.empty?
+	unless lost_annotations.nil? || lost_annotations.empty?
 		warn "\n[lost annotations] #{lost_annotations.length}"
 		lost_annotations.each do |a|
 			warn "#{a}"
@@ -128,4 +128,4 @@ else
 end
 
 # pp alignment.block_alignment
-puts target_annotations.to_json
+# puts target_annotations.to_json

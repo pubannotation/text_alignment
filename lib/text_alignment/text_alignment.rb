@@ -21,7 +21,7 @@ class TextAlignment::TextAlignment
 		@to_prevent_overlap = to_prevent_overlap
 
 		@original_text = nil
-		@block_alignment = nil
+		@blocks = nil
 		@cultivation_map = TextAlignment::CultivationMap.new
 	end
 
@@ -39,23 +39,32 @@ class TextAlignment::TextAlignment
 		denotations_mapped = @text_mapping.enmap_denotations(denotations)
 
 		## To generate the block_alignment of the input text against the reference text
-		# Initialization
-		# @block_alignment = {text: @original_text, reference_text: @original_reference_text, denotations: denotations}
-		@block_alignment = {text: @mapped_text, reference_text: @mapped_reference_text, denotations: denotations}
-
-		# Generation
-		@block_alignment[:blocks] = if r = whole_block_alignment(@mapped_text, @mapped_reference_text, @cultivation_map)
+		@blocks = if r = whole_block_alignment(@mapped_text, @mapped_reference_text, @cultivation_map)
 			r
 		else
 			find_block_alignment(@mapped_text, @mapped_reference_text, denotations_mapped, @cultivation_map)
 		end
+
+		@block_alignment = {text: @original_text, reference_text: @original_reference_text, denotations: denotations, blocks: demap_blocks(@blocks)}
+	end
+
+	def demap_blocks(_blocks)
+		return nil if _blocks.nil?
+
+		blocks = _blocks.map{|b| b.dup}
+		blocks.each do |b|
+			b[:source] = {begin:@text_mapping.demap_position(b[:source][:begin]), end:@text_mapping.demap_position(b[:source][:end])} if b[:source]
+			b[:target] = {begin:@rtext_mapping.demap_position(b[:target][:begin]), end:@rtext_mapping.demap_position(b[:target][:end])} if b[:target]
+		end
+
+		blocks
 	end
 
 	def update_cultivation_map
-		return if @block_alignment.nil? || @block_alignment[:blocks].nil?
+		return if @blocks.nil?
 
 		## To update the cultivation map
-		newly_cultivated_regions = @block_alignment[:blocks].collect do |b|
+		newly_cultivated_regions = @blocks.collect do |b|
 			if b[:alignment] == :block || b[:alignment] == :term
 				[b[:target][:begin], b[:target][:end]]
 			else
@@ -76,8 +85,8 @@ class TextAlignment::TextAlignment
 	def transform_begin_position(_begin_position)
 		begin_position = @text_mapping.enmap_position(_begin_position)
 
-		i = @block_alignment[:blocks].index{|b| b[:source][:end] > begin_position}
-		block = @block_alignment[:blocks][i]
+		i = @blocks.index{|b| b[:source][:end] > begin_position}
+		block = @blocks[i]
 
 		b = if block[:alignment] == :block || block[:alignment] == :term
 			begin_position + block[:delta]
@@ -98,8 +107,8 @@ class TextAlignment::TextAlignment
 	def transform_end_position(_end_position)
 		end_position = @text_mapping.enmap_position(_end_position)
 
-		i = @block_alignment[:blocks].index{|b| b[:source][:end] >= end_position}
-		block = @block_alignment[:blocks][i]
+		i = @blocks.index{|b| b[:source][:end] >= end_position}
+		block = @blocks[i]
 
 		e = if block[:alignment] == :block || block[:alignment] == :term
 			end_position + block[:delta]
@@ -160,8 +169,8 @@ class TextAlignment::TextAlignment
 	end
 
 	def alignment_show
-		stext = @mapped_text
-		ttext = @mapped_reference_text
+		stext = @block_alignment[:text]
+		ttext = @block_alignment[:reference_text]
 
 		show = ''
 		@block_alignment[:blocks].each do |a|

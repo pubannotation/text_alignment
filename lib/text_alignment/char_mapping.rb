@@ -94,10 +94,10 @@ class TextAlignment::CharMapping
 		@index_demap[position]
 	end
 
-	def enmap_denotations(_denotations)
-		return nil if _denotations.nil?
+	def enmap_denotations(denotations)
+		return nil if denotations.nil?
 
-		denotations = _denotations.map do |d|
+		denotations.map do |d|
 			d.dup.merge(span:{begin:enmap_position(d[:span][:begin]), end:enmap_position(d[:span][:end])})
 		end
 	end
@@ -175,7 +175,7 @@ if __FILE__ == $0
 		exit
 	end
 	annotations = JSON.parse File.read(ARGV[0]).strip, symbolize_names: true
-	denotations = annotations[:denotations]
+	denotations = annotations[:denotations] || []
 	if denotations.nil? && annotations[:tracks]
 		denotations = annotations[:tracks].first[:denotations]
 	end

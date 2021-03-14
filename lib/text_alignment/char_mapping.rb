@@ -61,6 +61,7 @@ TextAlignment::CHAR_MAPPING = [
 	["•", "*"],				#U+2022 (bullet)
 	[" ", " "],				#U+2009 (thin space)
 	[" ", " "],				#U+200A (hair space)
+	[" ", " "],				#U+202F (narrow no-break space)
 	[" ", " "],				#U+00A0 (Non-Breaking space)
 	["　", " "],				#U+3000 (ideographic space)
 	["‐", "-"],				#U+2010 (Hyphen)

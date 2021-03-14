@@ -48,40 +48,6 @@ class TextAlignment::TextAlignment
 		@block_alignment = {text: @original_text, reference_text: @original_reference_text, denotations: denotations, blocks: demap_blocks(@blocks)}
 	end
 
-	def demap_blocks(_blocks)
-		return nil if _blocks.nil?
-
-		blocks = _blocks.map{|b| b.dup}
-		blocks.each do |b|
-			b[:source] = {begin:@text_mapping.demap_position(b[:source][:begin]), end:@text_mapping.demap_position(b[:source][:end])} if b[:source]
-			b[:target] = {begin:@rtext_mapping.demap_position(b[:target][:begin]), end:@rtext_mapping.demap_position(b[:target][:end])} if b[:target]
-		end
-
-		blocks
-	end
-
-	def update_cultivation_map
-		return if @blocks.nil?
-
-		## To update the cultivation map
-		newly_cultivated_regions = @blocks.collect do |b|
-			if b[:alignment] == :block || b[:alignment] == :term
-				[b[:target][:begin], b[:target][:end]]
-			else
-				nil
-			end
-		end.compact.inject([]) do |condensed, region|
-			if condensed.empty? || (condensed.last.last + 1 < region.first)
-				condensed.push region
-			else
-				condensed.last[1] = region.last
-			end
-			condensed
-		end
-
-		@cultivation_map.cultivate(newly_cultivated_regions)
-	end
-
 	def transform_begin_position(_begin_position)
 		begin_position = @text_mapping.enmap_position(_begin_position)
 
@@ -285,20 +251,32 @@ class TextAlignment::TextAlignment
 					region_state, state_region = cultivation_map.region_state([b2, e2])
 					case region_state
 					when :closed
-						[]
+						[{source:{begin:b1, end:e1}, alignment: :empty}]
 					when :front_open
-						oe2 = state_region[1]
-						me2 = (oe2 - b2) > len_buffer ? b2 + len_buffer : oe2
-						local_alignment(str1, b1, e1, str2, b2, me2, denotations, cultivation_map)
+						if sum.empty? # when there is no preceding matched block
+							[{source:{begin:b1, end:e1}, alignment: :empty}]
+						else
+							oe2 = state_region[1]
+							me2 = (oe2 - b2) > len_buffer ? b2 + len_buffer : oe2
+							local_alignment(str1, b1, e1, str2, b2, me2, denotations, cultivation_map)
+						end
 					when :rear_open
-						ob2 = state_region[0]
-						mb2 = (e2 - ob2) > len_buffer ? e2 - len_buffer : ob2
-						local_alignment(str1, b1, e1, str2, mb2, e2, denotations, cultivation_map)
+						if cblock.nil? # when there is no following matched block
+							[{source:{begin:b1, end:e1}, alignment: :empty}]
+						else
+							ob2 = state_region[0]
+							mb2 = (e2 - ob2) > len_buffer ? e2 - len_buffer : ob2
+							local_alignment(str1, b1, e1, str2, mb2, e2, denotations, cultivation_map)
+						end
 					when :middle_closed
-						oe2 = state_region[0]
-						me2 = (oe2 - b2) > len_buffer ? b2 + len_buffer : oe2
-						attempt1 = local_alignment(str1, b1, e1, str2, b2, me2, denotations, cultivation_map)
-						if attempt1.empty?
+						attempt1 = if sum.empty?
+							[{source:{begin:b1, end:e1}, alignment: :empty}]
+						else
+							oe2 = state_region[0]
+							me2 = (oe2 - b2) > len_buffer ? b2 + len_buffer : oe2
+							local_alignment(str1, b1, e1, str2, b2, me2, denotations, cultivation_map)
+						end
+						if (attempt1.empty? || attempt1.first[:alignment] == :empty) && !cblock.nil?
 							ob2 = state_region[1]
 							mb2 = (e2 - ob2) > len_buffer ? e2 - len_buffer : ob2
 							local_alignment(str1, b1, e1, str2, mb2, e2, denotations, cultivation_map)
@@ -307,8 +285,12 @@ class TextAlignment::TextAlignment
 						end
 					else # :open
 						if (e2 - b2) > len_buffer
-							attempt1 = local_alignment(str1, b1, e1, str2, b2, b2 + len_buffer, denotations, cultivation_map)
-							if attempt1.empty?
+							attempt1 = if sum.empty?
+								[{source:{begin:b1, end:e1}, alignment: :empty}]
+							else
+								local_alignment(str1, b1, e1, str2, b2, b2 + len_buffer, denotations, cultivation_map)
+							end
+							if (attempt1.empty? || attempt1.first[:alignment] == :empty) && !cblock.nil?
 								local_alignment(str1, b1, e1, str2, e2 - len_buffer, e2, denotations, cultivation_map)
 							else
 								attempt1
@@ -327,10 +309,10 @@ class TextAlignment::TextAlignment
 	end
 
 	def whole_block_alignment(str1, str2, cultivation_map)
-		block_begin = cultivation_map.index(str1, str2, 0)
+		block_begin = cultivation_map.index(str1, str2)
 		return [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}] unless block_begin.nil?
 
-		block_begin = cultivation_map.index(str1.downcase, str2.downcase, 0)
+		block_begin = cultivation_map.index(str1.downcase, str2.downcase)
 		return [{source:{begin:0, end:str1.length}, target:{begin:block_begin, end:block_begin + str1.length}, delta:block_begin, alignment: :block}] unless block_begin.nil?
 
 		nil
@@ -412,6 +394,40 @@ class TextAlignment::TextAlignment
 				[{source:source, target:target, alignment: alignment, similarity: alignment.similarity}]
 			end
 		end
+	end
+
+	def update_cultivation_map
+		return if @blocks.nil?
+
+		## To update the cultivation map
+		newly_cultivated_regions = @blocks.collect do |b|
+			if b[:alignment] == :block || b[:alignment] == :term
+				[b[:target][:begin], b[:target][:end]]
+			else
+				nil
+			end
+		end.compact.inject([]) do |condensed, region|
+			if condensed.empty? || (condensed.last.last + 1 < region.first)
+				condensed.push region
+			else
+				condensed.last[1] = region.last
+			end
+			condensed
+		end
+
+		@cultivation_map.cultivate(newly_cultivated_regions)
+	end
+
+	def demap_blocks(_blocks)
+		return nil if _blocks.nil?
+
+		blocks = _blocks.map{|b| b.dup}
+		blocks.each do |b|
+			b[:source] = {begin:@text_mapping.demap_position(b[:source][:begin]), end:@text_mapping.demap_position(b[:source][:end])} if b[:source]
+			b[:target] = {begin:@rtext_mapping.demap_position(b[:target][:begin]), end:@rtext_mapping.demap_position(b[:target][:end])} if b[:target]
+		end
+
+		blocks
 	end
 
 end

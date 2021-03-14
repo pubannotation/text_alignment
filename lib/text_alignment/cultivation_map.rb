@@ -56,7 +56,7 @@ class TextAlignment::CultivationMap
 		else
 			if front_open?(region, closed_parts)
 				if rear_open?(region, closed_parts)
-					[:middle_closed, [closed_parts.first[1], closed_parts.last[0]]]
+					[:middle_closed, [closed_parts.first[0], closed_parts.last[1]]]
 				else
 					[:front_open, [region[0], closed_parts.first[0]]]
 				end
@@ -70,7 +70,7 @@ class TextAlignment::CultivationMap
 		end
 	end
 
-	def index(target, string, position)
+	def index(target, string, position = 0)
 		length = target.length
 		loop do
 			_begin = string.index(target, position)

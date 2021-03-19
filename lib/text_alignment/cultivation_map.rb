@@ -41,7 +41,7 @@ class TextAlignment::CultivationMap
 	end
 
 	def next_cultivated_position(position)
-		region = @map.bsearch{|r| position < r[0]}
+		region = @map.bsearch{|r| position <= r[0]}
 		region.nil? ? nil : region[0]
 	end
 

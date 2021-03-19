@@ -108,14 +108,14 @@ class TextAlignment::AnchorFinder
 					next
 				end
 
-				left_window_s1, left_window_s2 = get_left_windows(beg_s1, beg_s2)
+				left_window_s1, left_window_s2 = get_left_windows(beg_s1, beg_s2, size_window)
 				if left_window_s1 && (text_similarity(left_window_s1, left_window_s2) > @sim_threshold)
 					break unless valid_beg_s2.nil?
 					valid_beg_s2 = beg_s2
 					next
 				end
 
-				right_window_s1, right_window_s2 = get_right_windows(beg_s1, beg_s2)
+				right_window_s1, right_window_s2 = get_right_windows(beg_s1, beg_s2, size_window)
 				if right_window_s2 && (text_similarity(right_window_s1, right_window_s2) > @sim_threshold)
 					break unless valid_beg_s2.nil?
 					valid_beg_s2 = beg_s2
@@ -125,7 +125,11 @@ class TextAlignment::AnchorFinder
 
 			# r == nil means that the inner loop was broken (multiple candidates had passed the tests)
 			# r != nil means that the inner loop was completed (with or w/o a valid beg_s2 found)
-			break unless r.nil?
+			if r.nil?
+				valid_beg_s2 = nil
+			else
+				break
+			end
 		end
 
 		valid_beg_s2

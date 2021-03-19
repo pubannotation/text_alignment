@@ -151,7 +151,7 @@ class TextAlignment::MixedAlignment
 		coverage = count_nws_match.to_f / count_nws
 
 		# fragmentation rate
-		count_ofrag = sdiff.count{|d| d.old_element =~ /\s/}
+		count_ofrag = sdiff.count{|d| d.old_element =~ /\s/} + 1
 		count_frag = sdiff.collect{|d| (d.action == '=') && (d.old_element =~/\s/) ? ' ' : d.action}.join.scan(/=+/).count
 		rate_frag = count_ofrag.to_f / count_frag
 

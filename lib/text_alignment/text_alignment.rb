@@ -320,7 +320,7 @@ class TextAlignment::TextAlignment
 
 	def local_alignment(str1, b1, e1, str2, b2, e2, denotations = nil, cultivation_map)
 		tblocks = term_based_alignment(str1, b1, e1, str2, b2, e2, denotations, cultivation_map)
-		if tblocks.empty?
+		if tblocks.empty? || tblocks.first[:alignment] == :empty
 			lcs_alignment(str1, b1, e1, str2, b2, e2, cultivation_map)
 		else
 			tblocks

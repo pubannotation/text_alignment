@@ -2,6 +2,7 @@
 require 'text_alignment'
 require 'json'
 require 'pp'
+require 'optparse'
 
 def read_annotations(filename)
 	case File.extname(filename)
@@ -108,24 +109,46 @@ def align_mannotations(source_annotations, reference_text, alignment, debug = fa
 end
 
 
+## Options
+overlap_p = false
+debug_p = false
+
+## command line option processing
+require 'optparse'
+optparse = OptionParser.new do |opts|
+	opts.banner = "Usage: align_annotations [options] target_annotations(.json|.txt) reference_text(.json|.txt)"
+
+	opts.on('-o', '--overlap', 'tells it to assume there may be overlapping texts.') do
+		overlap_p = true
+	end
+
+	opts.on('-d', '--debug', 'tells it to show debugging information.') do
+		debug_p = true
+	end
+
+	opts.on('-h', '--help', 'displays this screen.') do
+		puts opts
+		exit
+	end
+end
+
+optparse.parse!
+
 unless ARGV.length == 2
-	warn "align_annotations target_annotations(.json|.txt) reference_annotations(.json|.txt)"
-	exit
+	puts optparse.help
+	exit 1
 end
 
 source_annotations = read_annotations(ARGV[0])
 reference_text = read_text(ARGV[1])
 
-alignment = TextAlignment::TextAlignment.new(reference_text, true)
+alignment = TextAlignment::TextAlignment.new(reference_text, !overlap_p)
 
 target_annotations = if source_annotations.class == Array
-	# align_mannotations(source_annotations, reference_text, alignment, true)
-	align_mannotations(source_annotations, reference_text, alignment, false)
+	align_mannotations(source_annotations, reference_text, alignment, debug_p)
 else
-	# denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], alignment)
-	denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], alignment, false)
+	denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], alignment, debug_p)
 	source_annotations.merge({text:reference_text, denotations:denotations})
 end
 
-# pp alignment.block_alignment
-# puts target_annotations.to_json
+puts target_annotations.to_json

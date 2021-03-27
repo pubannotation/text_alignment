@@ -147,13 +147,24 @@ class TextAlignment::MixedAlignment
 		# recoverbility
 		count_nws =	sdiff.count{|d| d.old_element =~ /\S/}
 		count_nws_match =	sdiff.count{|d| d.action == '=' && d.old_element =~ /\S/}
-
 		coverage = count_nws_match.to_f / count_nws
 
 		# fragmentation rate
-		count_ofrag = sdiff.count{|d| d.old_element =~ /\s/} + 1
-		count_frag = sdiff.collect{|d| (d.action == '=') && (d.old_element =~/\s/) ? ' ' : d.action}.join.scan(/=+/).count
-		rate_frag = count_ofrag.to_f / count_frag
+		frag_str = sdiff.collect do |d|
+			case d.action
+			when '='
+				'='
+			when '-'
+				''
+			when '+'
+				(d.new_element =~ /\S/) ? '+' : ''
+			else
+				''
+			end
+		end.join.sub(/^[^=]++/, '').sub(/[^=]+$/, '')
+
+		count_frag = frag_str.scan(/=+/).count
+		rate_frag = 1.0 / count_frag
 
 		similarity = coverage * rate_frag
 	end

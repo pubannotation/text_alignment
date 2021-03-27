@@ -108,7 +108,7 @@ class TextAlignment::CharMapping
 	def enmap_text(_text, char_mapping)
 		text = _text.dup
 
-		# To execute the single letter mapping
+		# To execute the single letter mapping replacement
 		char_mapping.each do |one, long|
 			text.gsub!(one, long) if long.length == 1
 		end

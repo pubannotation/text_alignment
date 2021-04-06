@@ -11,14 +11,17 @@ class TextAlignment::TextAlignment
 	attr_reader :similarity
 	attr_reader :lost_annotations
 
-	# Initialize with a reference text, again which texts will be aligned
-	def initialize(reference_text, to_prevent_overlap = false)
+	# Initialize with a reference text, against which texts will be aligned
+	def initialize(reference_text, options = {})
 		raise ArgumentError, "nil text" if reference_text.nil?
 
+		options ||= {}
+		@to_prevent_overlap = options[:to_prevent_overlap] || false
+		@squeeze_ws_to = options[:squeeze_ws_to] || 0
+
 		@original_reference_text = reference_text
-		@rtext_mapping = TextAlignment::CharMapping.new(reference_text)
+		@rtext_mapping = TextAlignment::CharMapping.new(reference_text, nil, @squeeze_ws_to)
 		@mapped_reference_text = @rtext_mapping.mapped_text
-		@to_prevent_overlap = to_prevent_overlap
 
 		@original_text = nil
 		@blocks = nil
@@ -32,7 +35,7 @@ class TextAlignment::TextAlignment
 		# In case the input text is the same as the previous one, reuse the previous text mapping
 		unless @original_text && @original_text == text
 			@original_text = text
-			@text_mapping = TextAlignment::CharMapping.new(text)
+			@text_mapping = TextAlignment::CharMapping.new(text, nil, @squeeze_ws_to)
 		end
 
 		@mapped_text = @text_mapping.mapped_text
@@ -202,7 +205,7 @@ class TextAlignment::TextAlignment
 
 	def find_block_alignment(str1, str2, denotations, cultivation_map)
 		## to find block alignments
-		anchor_finder = TextAlignment::AnchorFinder.new(str1, str2, cultivation_map)
+		anchor_finder = TextAlignment::AnchorFinder.new(str1, str2, cultivation_map, @squeeze_ws_to == 1)
 
 		blocks = []
 		while block = anchor_finder.get_next_anchor

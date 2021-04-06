@@ -6,7 +6,13 @@ module TextAlignment; end unless defined? TextAlignment
 
 class TextAlignment::AnchorFinder
 
-	def initialize(source_str, target_str, cultivation_map)
+	def initialize(source_str, target_str, cultivation_map, squeeze_ws = true)
+		@method_get_left_windows, @method_get_right_windows = if squeeze_ws
+			[method(:get_left_windows), method(:get_right_windows)]
+		else
+			[method(:get_left_windows_no_squeeze_ws), method(:get_right_windows_no_squeeze_ws)]
+		end
+
 		@s1 = source_str.downcase
 		@s2 = target_str.downcase
 
@@ -108,14 +114,14 @@ class TextAlignment::AnchorFinder
 					next
 				end
 
-				left_window_s1, left_window_s2 = get_left_windows(beg_s1, beg_s2, size_window)
+				left_window_s1, left_window_s2 = @method_get_left_windows.call(beg_s1, beg_s2, size_window)
 				if left_window_s1 && (text_similarity(left_window_s1, left_window_s2) > @sim_threshold)
 					break unless valid_beg_s2.nil?
 					valid_beg_s2 = beg_s2
 					next
 				end
 
-				right_window_s1, right_window_s2 = get_right_windows(beg_s1, beg_s2, size_window)
+				right_window_s1, right_window_s2 = @method_get_right_windows.call(beg_s1, beg_s2, size_window)
 				if right_window_s2 && (text_similarity(right_window_s1, right_window_s2) > @sim_threshold)
 					break unless valid_beg_s2.nil?
 					valid_beg_s2 = beg_s2
@@ -139,7 +145,7 @@ class TextAlignment::AnchorFinder
 		size_window ||= @size_window
 
 		# comment out below with the assumption that the beginning of a document gives a significant locational information
-		# return if @beg_s1 < size_window || @beg_s2 < size_window
+		# return if beg_s1 < size_window || beg_s2 < size_window
 
 		window_s1 = ''
 		loc = beg_s1 - 1
@@ -170,7 +176,7 @@ class TextAlignment::AnchorFinder
 		size_window ||= @size_window
 
 		# commend below with the assumption that the end of a document gives a significant locational
-		# return if (@beg_s1 + @size_ngram > (@s1.length - size_window)) || (@beg_s2 + @size_ngram > (@s2.length - size_window))
+		# return if (beg_s1 + @size_ngram > (@s1.length - size_window)) || (beg_s2 + @size_ngram > (@s2.length - size_window))
 
 		window_s1 = ''
 		loc = beg_s1 + @size_ngram
@@ -195,6 +201,44 @@ class TextAlignment::AnchorFinder
 			end
 			loc += 1
 		end
+
+		[window_s1, window_s2]
+	end
+
+	def get_left_windows_no_squeeze_ws(beg_s1, beg_s2, size_window = nil)
+		size_window ||= @size_window
+
+		# comment out below with the assumption that the beginning of a document gives a significant locational information
+		# return if beg_s1 < size_window || beg_s2 < size_window
+
+		wbeg = beg_s1 - size_window
+		wbeg = 0 if wbeg < 0
+		window_s1 = @s1[wbeg ... beg_s1]
+
+		wbeg = beg_s2 - size_window
+		wbeg = 0 if wbeg < 0
+		window_s2 = @s2[wbeg ... beg_s2]
+
+		[window_s1, window_s2]
+	end
+
+	def get_right_windows_no_squeeze_ws(beg_s1, beg_s2, size_window = nil)
+		size_window ||= @size_window
+
+		# commend below with the assumption that the end of a document gives a significant locational
+		# return if (@beg_s1 + @size_ngram > (@s1.length - size_window)) || (@beg_s2 + @size_ngram > (@s2.length - size_window))
+
+		slen = @s1.length
+		wbeg = beg_s1 + @size_ngram
+		wend = wbeg + size_window
+		wend = slen if wend > slen
+		window_s1 = @s1[wbeg ... wend]
+
+		slen = @s2.length
+		wbeg = beg_s2 + @size_ngram
+		wend = wbeg + size_window
+		wend = slen if wend > slen
+		window_s2 = @s2[wbeg ... wend]
 
 		[window_s1, window_s2]
 	end

@@ -1,3 +1,5 @@
+require 'strscan'
+
 module TextAlignment; end unless defined? TextAlignment
 
 TextAlignment::CHAR_MAPPING = [
@@ -80,8 +82,16 @@ TextAlignment::CHAR_MAPPING = [
 class TextAlignment::CharMapping
 	attr_reader :mapped_text
 
-	def initialize(_text, char_mapping = nil)
-		char_mapping ||= TextAlignment::CHAR_MAPPING
+	def initialize(_text, char_mapping = nil, squeeze_ws_to = 1)
+		if squeeze_ws_to == 0
+			@method_get_positions_squeeze_ws = method(:get_positions_squeeze_ws_0)
+			@method_squeeze_ws = method(:squeeze_ws_0!)
+		else
+			@method_get_positions_squeeze_ws = method(:get_positions_squeeze_ws_1)
+			@method_squeeze_ws = method(:squeeze_ws_1!)
+		end
+
+		char_mapping ||= TextAlignment::CHAR_MAPPING.sort{|a, b| b[1].length <=> a[1].length}
 		@mapped_text, offset_mapping = enmap_text(_text, char_mapping)
 		@index_enmap = offset_mapping.to_h
 		@index_demap = offset_mapping.map{|m| m.reverse}.to_h
@@ -105,7 +115,7 @@ class TextAlignment::CharMapping
 
 	private
 
-	def enmap_text(_text, char_mapping)
+	def enmap_text(_text, char_mapping, no_ws = false)
 		text = _text.dup
 
 		# To execute the single letter mapping replacement
@@ -113,14 +123,14 @@ class TextAlignment::CharMapping
 			text.gsub!(one, long) if long.length == 1
 		end
 
-		# To get the (location, length) index for replacements
-		loc_len = []
+		# To get the replacement positions, (position, old_length, new_length), for char mappings
+		rpositions = []
 		char_mapping.each do |one, long|
 			next if long.length == 1
 
 			init_next = 0
 			while loc = text.index(long, init_next)
-				loc_len << [loc, long.length]
+				rpositions << [loc, long.length, 1]
 				init_next = loc + long.length
 			end
 
@@ -128,32 +138,31 @@ class TextAlignment::CharMapping
 			text.gsub!(long, one * long.length)
 		end
 
-		# To get the (location, length) index for consecutive whitespace sequences
-		init_next = 0
-		while loc = text.index(/\s{2,}/, init_next)
-			len = $~[0].length
-			loc_len << [loc, len]
-			init_next = loc + len
-		end
+		# To get the replacement positions, (position, old_length, new_length), for consecutive whitespaces
+		rpositions += @method_get_positions_squeeze_ws.call(text)
 
-		loc_len.sort!{|a, b| a[0] <=> b[0]}
+		rpositions.sort!{|a, b| a[0] <=> b[0]}
 
 		# To get the offset_mapping before and after replacement
 		offset_mapping = []
 		init_next = 0
 		j = 0
 
-		loc_len.each do |loc, len|
+		rpositions.each do |loc, old_len, new_len|
 			offset_mapping += (init_next .. loc).map do |i|
+				m = [i, j]
 				j += 1
-				[i, j - 1]
+				m
 			end
-			init_next = loc + len
+
+			init_next = loc + old_len
+			j += (new_len - 1)
 		end
 
 		offset_mapping += (init_next .. text.length).map do |i|
+			m = [i, j]
 			j += 1
-			[i, j - 1]
+			m
 		end
 
 		# To execute the long letter mapping
@@ -162,10 +171,41 @@ class TextAlignment::CharMapping
 		end
 
 		# To replace multi whitespace sequences to a space
-		text.gsub!(/\s{2,}/, ' ')
+		@method_squeeze_ws.call(text)
 
 		[text, offset_mapping]
 	end
+
+	# To get squeeze positions of whitespaces to one
+	def get_positions_squeeze_ws_1(text)
+		rpositions = []
+		text.scan(/s{2,}/) do |s|
+			loc = $~.begin(0)
+			len = $~.end(0) - loc
+			rpositions << [loc, len, 1]
+		end
+		rpositions
+	end
+
+	# To get squeeze positions of whitespaces to zero
+	def get_positions_squeeze_ws_0(text)
+		rpositions = []
+		text.scan(/\s+/) do |s|
+			loc = $~.begin(0)
+			len = $~.end(0) - loc
+			rpositions << [loc, len, 0]
+		end
+		rpositions
+	end
+
+	def squeeze_ws_1!(text)
+		text.gsub!(/\s{2,}/, ' ')
+	end
+
+	def squeeze_ws_0!(text)
+		text.gsub!(/\s+/, '')
+	end
+
 end
 
 if __FILE__ == $0
@@ -186,5 +226,5 @@ if __FILE__ == $0
 	denotations_mapped = text_mapping.enmap_denotations(denotations)
 	new_annotations = {text:text_mapped, denotations:denotations_mapped}
 
-	puts new_annotations.to_json
+	# puts new_annotations.to_json
 end

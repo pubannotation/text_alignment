@@ -151,4 +151,4 @@ else
 	source_annotations.merge({text:reference_text, denotations:denotations})
 end
 
-puts target_annotations.to_json
+# puts target_annotations.to_json

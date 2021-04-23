@@ -80,10 +80,10 @@ TextAlignment::CHAR_MAPPING = [
 
 
 class TextAlignment::CharMapping
-	attr_reader :mapped_text
+	attr_reader :mapped_text, :index_enmap
 
-	def initialize(_text, char_mapping = nil, squeeze_ws_to = 1)
-		if squeeze_ws_to == 0
+	def initialize(_text, char_mapping = nil, to_ignore_whitespaces = false)
+		if to_ignore_whitespaces
 			@method_get_positions_squeeze_ws = method(:get_positions_squeeze_ws_0)
 			@method_squeeze_ws = method(:squeeze_ws_0!)
 		else
@@ -140,29 +140,25 @@ class TextAlignment::CharMapping
 
 		# To get the replacement positions, (position, old_length, new_length), for consecutive whitespaces
 		rpositions += @method_get_positions_squeeze_ws.call(text)
-
 		rpositions.sort!{|a, b| a[0] <=> b[0]}
 
 		# To get the offset_mapping before and after replacement
-		offset_mapping = []
-		init_next = 0
-		j = 0
+		offset_mapping = begin
+			i, j = 0, 0
 
-		rpositions.each do |loc, old_len, new_len|
-			offset_mapping += (init_next .. loc).map do |i|
-				m = [i, j]
-				j += 1
+			offset_mappings = rpositions.map do |loc, old_len, new_len|
+				pre_len = loc - i
+				m = (0 .. pre_len).map{|c| [i + c, j + c]}
+				i = loc + old_len
+				j += pre_len + new_len
+
 				m
 			end
 
-			init_next = loc + old_len
-			j += (new_len - 1)
-		end
+			pre_len = text.length - i
+			offset_mappings << (0 .. pre_len).map{|c| [i + c, j + c]}
 
-		offset_mapping += (init_next .. text.length).map do |i|
-			m = [i, j]
-			j += 1
-			m
+			offset_mappings.reduce(:+)
 		end
 
 		# To execute the long letter mapping
@@ -179,7 +175,7 @@ class TextAlignment::CharMapping
 	# To get squeeze positions of whitespaces to one
 	def get_positions_squeeze_ws_1(text)
 		rpositions = []
-		text.scan(/s{2,}/) do |s|
+		text.scan(/\s{2,}/) do |s|
 			loc = $~.begin(0)
 			len = $~.end(0) - loc
 			rpositions << [loc, len, 1]
@@ -189,13 +185,7 @@ class TextAlignment::CharMapping
 
 	# To get squeeze positions of whitespaces to zero
 	def get_positions_squeeze_ws_0(text)
-		rpositions = []
-		text.scan(/\s+/) do |s|
-			loc = $~.begin(0)
-			len = $~.end(0) - loc
-			rpositions << [loc, len, 0]
-		end
-		rpositions
+		text.enum_for(:scan, /\s+/).map{[b = $~.begin(0), $~.end(0) - b, 0]}
 	end
 
 	def squeeze_ws_1!(text)
@@ -210,6 +200,7 @@ end
 
 if __FILE__ == $0
 	require 'json'
+	# require 'profile'
 
 	unless ARGV.length == 1
 		warn "#{$0} an_annotation_json_file.json" 
@@ -221,7 +212,8 @@ if __FILE__ == $0
 		denotations = annotations[:tracks].first[:denotations]
 	end
 
-	text_mapping = TextAlignment::CharMapping.new(annotations[:text])
+	text_mapping = TextAlignment::CharMapping.new(annotations[:text], nil, false)
+	# text_mapping = TextAlignment::CharMapping.new(annotations[:text], nil, true)
 	text_mapped = text_mapping.mapped_text
 	denotations_mapped = text_mapping.enmap_denotations(denotations)
 	new_annotations = {text:text_mapped, denotations:denotations_mapped}

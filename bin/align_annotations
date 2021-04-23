@@ -110,20 +110,28 @@ end
 
 
 ## Options
-overlap_p = false
-debug_p = false
+options = {}
+verbose = false
 
 ## command line option processing
 require 'optparse'
 optparse = OptionParser.new do |opts|
 	opts.banner = "Usage: align_annotations [options] target_annotations(.json|.txt) reference_text(.json|.txt)"
 
-	opts.on('-o', '--overlap', 'tells it to assume there may be overlapping texts.') do
-		overlap_p = true
+	opts.on('-d', '--duplicate', 'tells it to assume there may be duplicate texts.') do
+		options[:duplicate_texts] = true
 	end
 
-	opts.on('-d', '--debug', 'tells it to show debugging information.') do
-		debug_p = true
+	opts.on('-w', '--no-whitespaces', 'tells it to ignore whitespaces.') do
+		options[:to_ignore_whitespaces] = true
+	end
+
+	opts.on('-o', '--no-order', 'tells it to ignore the order of the texts.') do
+		options[:to_ignore_text_order] = true
+	end
+
+	opts.on('-v', '--verbose', 'tells it to show the state verbosely for debugging.') do
+		verbose = true
 	end
 
 	opts.on('-h', '--help', 'displays this screen.') do
@@ -142,12 +150,12 @@ end
 source_annotations = read_annotations(ARGV[0])
 reference_text = read_text(ARGV[1])
 
-alignment = TextAlignment::TextAlignment.new(reference_text, !overlap_p)
+alignment = TextAlignment::TextAlignment.new(reference_text, options)
 
 target_annotations = if source_annotations.class == Array
-	align_mannotations(source_annotations, reference_text, alignment, debug_p)
+	align_mannotations(source_annotations, reference_text, alignment, verbose)
 else
-	denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], alignment, debug_p)
+	denotations = align_denotations(source_annotations[:denotations], source_annotations[:text], alignment, verbose)
 	source_annotations.merge({text:reference_text, denotations:denotations})
 end
 

@@ -6,17 +6,18 @@ module TextAlignment; end unless defined? TextAlignment
 
 class TextAlignment::AnchorFinder
 
-	def initialize(source_str, target_str, cultivation_map, squeeze_ws = true)
-		@method_get_left_windows, @method_get_right_windows = if squeeze_ws
-			[method(:get_left_windows), method(:get_right_windows)]
-		else
+	def initialize(source_str, target_str, cultivation_map, to_ignore_whitespaces = false, to_ignore_text_order = false)
+		@method_get_left_windows, @method_get_right_windows = if to_ignore_whitespaces
 			[method(:get_left_windows_no_squeeze_ws), method(:get_right_windows_no_squeeze_ws)]
+		else
+			[method(:get_left_windows), method(:get_right_windows)]
 		end
 
 		@s1 = source_str.downcase
 		@s2 = target_str.downcase
 
 		@cultivation_map = cultivation_map
+		@to_ignore_text_order = to_ignore_text_order
 
 		@size_ngram  = TextAlignment::SIZE_NGRAM
 		@size_window = TextAlignment::SIZE_WINDOW
@@ -71,10 +72,7 @@ class TextAlignment::AnchorFinder
 		# to get the anchor to search for in s2
 		anchor = @s1[beg_s1, @size_ngram]
 
-		# comment out below with the assumption that texts are in the same order
-		# search_position = 0
-		search_position = @pos_s2_last_match
-
+		search_position = @to_ignore_text_order ? 0 : @pos_s2_last_match
 		beg_s2_candidates = find_beg_s2_candidates(anchor, search_position)
 		return nil if beg_s2_candidates.empty?
 

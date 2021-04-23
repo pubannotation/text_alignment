@@ -16,11 +16,12 @@ class TextAlignment::TextAlignment
 		raise ArgumentError, "nil text" if reference_text.nil?
 
 		options ||= {}
-		@to_prevent_overlap = options[:to_prevent_overlap] || false
-		@squeeze_ws_to = options[:squeeze_ws_to] || 0
+		@duplicate_texts = options[:duplicate_texts] || false
+		@to_ignore_whitespaces = options[:to_ignore_whitespaces] || false
+		@to_ignore_text_order = options[:to_ignore_text_order] || false
 
 		@original_reference_text = reference_text
-		@rtext_mapping = TextAlignment::CharMapping.new(reference_text, nil, @squeeze_ws_to)
+		@rtext_mapping = TextAlignment::CharMapping.new(reference_text, nil, @to_ignore_whitespaces)
 		@mapped_reference_text = @rtext_mapping.mapped_text
 
 		@original_text = nil
@@ -30,12 +31,12 @@ class TextAlignment::TextAlignment
 
 	def align(text, denotations = nil)
 		# To maintain the cultivation map
-		update_cultivation_map if @to_prevent_overlap
+		update_cultivation_map unless @duplicate_texts
 
 		# In case the input text is the same as the previous one, reuse the previous text mapping
 		unless @original_text && @original_text == text
 			@original_text = text
-			@text_mapping = TextAlignment::CharMapping.new(text, nil, @squeeze_ws_to)
+			@text_mapping = TextAlignment::CharMapping.new(text, nil, @to_ignore_whitespaces)
 		end
 
 		@mapped_text = @text_mapping.mapped_text
@@ -205,7 +206,7 @@ class TextAlignment::TextAlignment
 
 	def find_block_alignment(str1, str2, denotations, cultivation_map)
 		## to find block alignments
-		anchor_finder = TextAlignment::AnchorFinder.new(str1, str2, cultivation_map, @squeeze_ws_to == 1)
+		anchor_finder = TextAlignment::AnchorFinder.new(str1, str2, cultivation_map, @to_ignore_whitespaces, @to_ignore_text_order)
 
 		blocks = []
 		while block = anchor_finder.get_next_anchor
@@ -241,68 +242,75 @@ class TextAlignment::TextAlignment
 			b1 = lblock.nil? ? 0 : lblock[:source][:end]
 			e1 = cblock.nil? ? str1.length : cblock[:source][:begin]
 
-			if b1 < e1
+			if b1 <= e1
+				_str1 = str1[b1 ... e1]
+
 				b2 = lblock.nil? ? 0 : lblock[:target][:end]
 				e2 = cblock.nil? ? str2.length : cblock[:target][:begin]
-				_str1 = str1[b1 ... e1]
-				_str2 = str2[b2 ... e2]
 
-				sum += if _str1.strip.empty? || _str2.strip.empty?
-					[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
-				else
-					len_buffer = ((e1 - b1) * (1 + TextAlignment::BUFFER_RATE)).to_i + TextAlignment::BUFFER_MIN
-					region_state, state_region = cultivation_map.region_state([b2, e2])
-					case region_state
-					when :closed
-						[{source:{begin:b1, end:e1}, alignment: :empty}]
-					when :front_open
-						if sum.empty? # when there is no preceding matched block
+				if b2 < e2
+					_str2 = str2[b2 ... e2]
+
+					sum += if _str1.strip.empty? || _str2.strip.empty?
+						[{source:{begin:b1, end:e1}, target:{begin:b2, end:e2}, alignment: :empty}]
+					else
+						len_buffer = ((e1 - b1) * (1 + TextAlignment::BUFFER_RATE)).to_i + TextAlignment::BUFFER_MIN
+						region_state, state_region = cultivation_map.region_state([b2, e2])
+						case region_state
+						when :closed
 							[{source:{begin:b1, end:e1}, alignment: :empty}]
-						else
-							oe2 = state_region[1]
-							me2 = (oe2 - b2) > len_buffer ? b2 + len_buffer : oe2
-							local_alignment(str1, b1, e1, str2, b2, me2, denotations, cultivation_map)
-						end
-					when :rear_open
-						if cblock.nil? # when there is no following matched block
-							[{source:{begin:b1, end:e1}, alignment: :empty}]
-						else
-							ob2 = state_region[0]
-							mb2 = (e2 - ob2) > len_buffer ? e2 - len_buffer : ob2
-							local_alignment(str1, b1, e1, str2, mb2, e2, denotations, cultivation_map)
-						end
-					when :middle_closed
-						attempt1 = if sum.empty?
-							[{source:{begin:b1, end:e1}, alignment: :empty}]
-						else
-							oe2 = state_region[0]
-							me2 = (oe2 - b2) > len_buffer ? b2 + len_buffer : oe2
-							local_alignment(str1, b1, e1, str2, b2, me2, denotations, cultivation_map)
-						end
-						if (attempt1.empty? || attempt1.first[:alignment] == :empty) && !cblock.nil?
-							ob2 = state_region[1]
-							mb2 = (e2 - ob2) > len_buffer ? e2 - len_buffer : ob2
-							local_alignment(str1, b1, e1, str2, mb2, e2, denotations, cultivation_map)
-						else
-							attempt1
-						end
-					else # :open
-						if (e2 - b2) > len_buffer
+						when :front_open
+							if sum.empty? # when there is no preceding matched block
+								[{source:{begin:b1, end:e1}, alignment: :empty}]
+							else
+								oe2 = state_region[1]
+								me2 = (oe2 - b2) > len_buffer ? b2 + len_buffer : oe2
+								local_alignment(str1, b1, e1, str2, b2, me2, denotations, cultivation_map)
+							end
+						when :rear_open
+							if cblock.nil? # when there is no following matched block
+								[{source:{begin:b1, end:e1}, alignment: :empty}]
+							else
+								ob2 = state_region[0]
+								mb2 = (e2 - ob2) > len_buffer ? e2 - len_buffer : ob2
+								local_alignment(str1, b1, e1, str2, mb2, e2, denotations, cultivation_map)
+							end
+						when :middle_closed
 							attempt1 = if sum.empty?
 								[{source:{begin:b1, end:e1}, alignment: :empty}]
 							else
-								local_alignment(str1, b1, e1, str2, b2, b2 + len_buffer, denotations, cultivation_map)
+								oe2 = state_region[0]
+								me2 = (oe2 - b2) > len_buffer ? b2 + len_buffer : oe2
+								local_alignment(str1, b1, e1, str2, b2, me2, denotations, cultivation_map)
 							end
 							if (attempt1.empty? || attempt1.first[:alignment] == :empty) && !cblock.nil?
-								local_alignment(str1, b1, e1, str2, e2 - len_buffer, e2, denotations, cultivation_map)
+								ob2 = state_region[1]
+								mb2 = (e2 - ob2) > len_buffer ? e2 - len_buffer : ob2
+								local_alignment(str1, b1, e1, str2, mb2, e2, denotations, cultivation_map)
 							else
 								attempt1
 							end
-						else
-							local_alignment(str1, b1, e1, str2, b2, e2, denotations, cultivation_map)
+						else # :open
+							if (e2 - b2) > len_buffer
+								attempt1 = if sum.empty?
+									[{source:{begin:b1, end:e1}, alignment: :empty}]
+								else
+									local_alignment(str1, b1, e1, str2, b2, b2 + len_buffer, denotations, cultivation_map)
+								end
+								if (attempt1.empty? || attempt1.first[:alignment] == :empty) && !cblock.nil?
+									local_alignment(str1, b1, e1, str2, e2 - len_buffer, e2, denotations, cultivation_map)
+								else
+									attempt1
+								end
+							else
+								local_alignment(str1, b1, e1, str2, b2, e2, denotations, cultivation_map)
+							end
 						end
 					end
+				elsif b2 > e2 # when out of order
+					# ToDo
 				end
+
 			end
 
 			lblock = cblock

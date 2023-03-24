@@ -1,4 +1,4 @@
-# SequenceAlignment
+# TextAlignment
 
 It allows to get an optimal alignemnt of two character sequences, e.g., text.
 
@@ -7,7 +7,7 @@ It allows to get an optimal alignemnt of two character sequences, e.g., text.
 
 Add this line to your application's Gemfile:
 
-    gem 'sequence_alignment'
+    gem 'text_alignment'
 
 And then execute:
 
@@ -15,7 +15,7 @@ And then execute:
 
 Or install it yourself as:
 
-    $ gem install sequence_alignment
+    $ gem install text_alignment
 
 
 ## Contributing
